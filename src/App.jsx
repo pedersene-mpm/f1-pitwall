@@ -454,6 +454,65 @@ export default function F1App(){
   },[step,sel,tl,drivers,lapTimeS]);
 
   const standings=useMemo(()=>{const fr=tl[step];if(!fr)return drivers;return[...drivers].sort((a,b)=>(fr.raw[b.code]||0)-(fr.raw[a.code]||0));},[tl,step,drivers]);
+
+  // ── Sector colour analysis ─────────────────────────────────────────────────
+  // Computed once per step (not per render frame) via useMemo.
+  // Rules:
+  //   Purple — this driver's current sector time is THE fastest for that sector
+  //            across ALL drivers, across ALL laps completed so far in the race.
+  //   Green  — this driver's current sector time equals their own personal best
+  //            for that sector (fastest they've done it across all their own laps).
+  //   Yellow — current sector time is slower than their personal best.
+  //
+  // Mock: we simulate deterministic sector times per driver/sector/lap.
+  // Replace mockT() with real FastF1 sector_times when backend exports them.
+  const sectorAnalysis=useMemo(()=>{
+    const BASE=[26.1,31.8,19.4]; // approximate base times (S1, S2, S3) in seconds
+    const EPS=0.011;
+
+    // Deterministic mock sector time — varies lap to lap but consistently
+    function mockT(code,si,lap){
+      const seed=(code.charCodeAt(0)*31+(code.charCodeAt(2)||0)*17+si*7+lap*13)%100;
+      return BASE[si]+(seed/100)*2.0-0.5; // ±1s variation around base
+    }
+
+    const fr=tl[step]||{};
+
+    // Step 1: for each driver compute their current lap's time and personal best
+    const driverData={};
+    drivers.forEach(d=>{
+      const curLap=fr.lap?.[d.code]||1;
+      const perSector=[0,1,2].map(si=>{
+        const curT=mockT(d.code,si,curLap);
+        // Personal best = minimum across all laps 1..curLap
+        let pb=curT;
+        for(let lap=1;lap<curLap;lap++) pb=Math.min(pb,mockT(d.code,si,lap));
+        return {curT,pb,t:curT.toFixed(1)};
+      });
+      driverData[d.code]=perSector;
+    });
+
+    // Step 2: session best per sector = minimum across ALL drivers' personal bests
+    const sessionBest=[0,1,2].map(si=>{
+      let best=Infinity;
+      drivers.forEach(d=>{best=Math.min(best,driverData[d.code][si].pb);});
+      return best;
+    });
+
+    // Step 3: assign colours
+    const result={};
+    drivers.forEach(d=>{
+      result[d.code]=[0,1,2].map(si=>{
+        const {curT,pb,t}=driverData[d.code][si];
+        let color;
+        if(Math.abs(curT-sessionBest[si])<EPS) color="#a855f7"; // purple: session best
+        else if(Math.abs(curT-pb)<EPS)          color="#00ff88"; // green:  personal best
+        else                                     color="#FFD700"; // yellow: slower
+        return {t,color};
+      });
+    });
+    return result;
+  },[step,tl,drivers]);
   const selDriver=sel?drivers.find(d=>d.code===sel):null;
   const selRank=sel?standings.findIndex(d=>d.code===sel)+1:null;
   const leaderLap=standings[0]?(tl[step]?.lap[standings[0].code]||1):1;
@@ -586,11 +645,11 @@ export default function F1App(){
               <path d={trackD} fill="none" stroke="#1a3acc" strokeWidth={32} strokeOpacity={0.04} style={{filter:"url(#trackGlow)"}}/>
               {/* Pit lane */}
               {pitLaneD&&<><path d={pitLaneD} fill="none" stroke="#323540" strokeWidth={14} strokeLinecap="round"/><path d={pitLaneD} fill="none" stroke="#3c3f50" strokeWidth={10} strokeLinecap="round"/><path d={pitLaneD} fill="none" stroke="#464958" strokeWidth={1.5} strokeDasharray="4 6" strokeOpacity={0.6} strokeLinecap="round"/></>}
-              {/* Track — original dark surface */}
-              <path d={trackD} fill="none" stroke="#2a2d3a" strokeWidth={24} strokeLinecap="round" strokeLinejoin="round"/>
-              <path d={trackD} fill="none" stroke="#1e2030" strokeWidth={20} strokeLinecap="round" strokeLinejoin="round"/>
-              <path d={trackD} fill="none" stroke="#252838" strokeWidth={16} strokeLinecap="round" strokeLinejoin="round"/>
-              <path d={trackD} fill="none" stroke="#2e3248" strokeWidth={10} strokeLinecap="round" strokeLinejoin="round" strokeOpacity={0.7}/>
+              {/* Track — white border lines give circuit shape, dark asphalt fill */}
+              <path d={trackD} fill="none" stroke="#ffffff" strokeWidth={22} strokeLinecap="round" strokeLinejoin="round" strokeOpacity={0.9}/>
+              <path d={trackD} fill="none" stroke="#1e2030" strokeWidth={18} strokeLinecap="round" strokeLinejoin="round"/>
+              <path d={trackD} fill="none" stroke="#252838" strokeWidth={14} strokeLinecap="round" strokeLinejoin="round"/>
+              <path d={trackD} fill="none" stroke="#2e3248" strokeWidth={8} strokeLinecap="round" strokeLinejoin="round" strokeOpacity={0.7}/>
               {/* Centre dash */}
               <path d={trackD} fill="none" stroke="#343748" strokeWidth={0.8} strokeDasharray="5 10" strokeOpacity={.45}/>
               {/* DRS detection point markers — dot only at zone start */}
@@ -610,8 +669,8 @@ export default function F1App(){
               {/* S/F */}
               <line x1={sfX-2} y1={sfY-14} x2={sfX-2} y2={sfY+10} stroke="#ffffff" strokeWidth={2} strokeOpacity={.6}/>
               <text x={sfX+4} y={sfY+3} fill="#7a7d96" fontSize={5.5} fontFamily="'DM Mono',monospace">S/F</text>
-              {/* Corner labels */}
-              {cornerLabels.map(([name,x,y,anchor])=>(<text key={name} x={x} y={y} fill="#3a3e58" fontSize={4.8} textAnchor={anchor} fontFamily="'Orbitron',sans-serif" letterSpacing={.7}>{name}</text>))}
+              {/* Corner labels — white */}
+              {cornerLabels.map(([name,x,y,anchor])=>(<text key={name} x={x} y={y} fill="#ffffff" fontSize={5.5} textAnchor={anchor} fontFamily="'DM Mono',monospace" letterSpacing={.5} opacity={0.7}>{name}</text>))}
               {/* Cars */}
               {drivers.map((d)=>{
                 const p=carPos[d.code];if(!p)return null;
@@ -650,23 +709,8 @@ export default function F1App(){
               const isActive=sel===d.code, isHover=hover===d.code;
               const leaderGap=i===0?null:((fr.raw[standings[0].code]||0)-(fr.raw[d.code]||0))*lapTimeS;
               const currentLap=fr.lap?.[d.code]||1;
-
-              // Mock sector times (seconds) — replace with real FastF1 export
-              const BASE_SECTOR=[26.1,31.8,19.4]; // approximate Silverstone S1/S2/S3
-              const sectorData=[0,1,2].map(si=>{
-                const era=Math.floor(currentLap/10);
-                const sessionBestHolder=(si*7+era*3)%drivers.length;
-                const myIdx=drivers.findIndex(x=>x.code===d.code);
-                const variance=(d.code.charCodeAt(0)*3+si*11+currentLap*7)%20*0.05-0.5;
-                const t=(BASE_SECTOR[si]+variance).toFixed(1);
-                let color;
-                if(myIdx===sessionBestHolder) color="#a855f7";
-                else{
-                  const pbSeed=(d.code.charCodeAt(0)*3+si*11+currentLap*7)%10;
-                  color=pbSeed<4?"#00ff88":"#FFD700";
-                }
-                return {t, color};
-              });
+              // Sector data from pre-computed analysis (correct PB / session best logic)
+              const sectorData=sectorAnalysis[d.code]||[{t:"—",color:"#FFD700"},{t:"—",color:"#FFD700"},{t:"—",color:"#FFD700"}];
 
               return {d,i,isDNF,isInPit,isActive,isHover,leaderGap,currentLap,sectorData};
             });

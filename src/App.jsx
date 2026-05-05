@@ -591,16 +591,6 @@ export default function F1App(){
               <text x={sfX+4} y={sfY+3} fill="#7a7d96" fontSize={5.5} fontFamily="'DM Mono',monospace">S/F</text>
               {/* Corner labels */}
               {cornerLabels.map(([name,x,y,anchor])=>(<text key={name} x={x} y={y} fill="#3a3e58" fontSize={4.8} textAnchor={anchor} fontFamily="'Orbitron',sans-serif" letterSpacing={.7}>{name}</text>))}
-              {/* Battle lines */}
-              {standings.map((d,i)=>{
-                if(i===0)return null;
-                const isDNF=d.retiredAtStep!=null&&step>d.retiredAtStep;if(isDNF)return null;
-                const fr=tl[step]||{};
-                const gap=((fr.raw[standings[i-1].code]||0)-(fr.raw[d.code]||0))*lapTimeS;
-                if(gap>1.0)return null;
-                const pA=carPos[standings[i-1].code],pB=carPos[d.code];if(!pA||!pB)return null;
-                return(<g key={`b-${d.code}`}><line x1={pA.x} y1={pA.y} x2={pB.x} y2={pB.y} stroke="#FFD700" strokeWidth={1} strokeOpacity={0.3} strokeDasharray="3 4"/><text x={(pA.x+pB.x)/2} y={(pA.y+pB.y)/2-4} fill="#FFD700" fontSize={5} textAnchor="middle" opacity={0.6} fontFamily="'DM Mono',monospace">{gap.toFixed(2)}s</text></g>);
-              })}
               {/* Cars */}
               {drivers.map((d)=>{
                 const p=carPos[d.code];if(!p)return null;
@@ -632,47 +622,6 @@ export default function F1App(){
           {/* Race sidebar */}
           <aside style={{width:220,flexShrink:0,borderLeft:"1px solid #1a1c28",background:"#090910",display:"flex",flexDirection:"column",overflow:"hidden"}}>
 
-            {/* ── BATTLES PANEL ── shown at top when any battles active */}
-            {(()=>{
-              const fr=tl[step]||{};
-              const battles=standings.reduce((acc,d,i)=>{
-                if(i===0)return acc;
-                const isDNF=d.retiredAtStep!=null&&step>d.retiredAtStep;
-                const isInPit=Boolean(carPos[d.code]?.isInPit);
-                if(isDNF||isInPit)return acc;
-                const gap=((fr.raw[standings[i-1].code]||0)-(fr.raw[d.code]||0))*lapTimeS;
-                if(gap<1.0) acc.push({ahead:standings[i-1],behind:d,gap});
-                return acc;
-              },[]);
-              if(!battles.length) return null;
-              return(
-                <div style={{borderBottom:"1px solid #1a1c28",background:"#0c0b00"}}>
-                  <div style={{padding:"5px 12px 3px",display:"flex",alignItems:"center",gap:6}}>
-                    <span style={{fontSize:7,color:"#FFD700",letterSpacing:3,fontWeight:700}}>⚡ BATTLES</span>
-                    <span style={{fontSize:6,color:"#555444",letterSpacing:1}}>{battles.length} active</span>
-                  </div>
-                  {battles.map(({ahead,behind,gap})=>(
-                    <div key={behind.code} style={{padding:"4px 12px",display:"flex",alignItems:"center",gap:6,borderTop:"1px solid #1a1600"}}>
-                      {/* Ahead driver */}
-                      <div style={{display:"flex",alignItems:"center",gap:3,minWidth:0}}>
-                        <div style={{width:2,height:12,background:ahead.color,borderRadius:1,flexShrink:0}}/>
-                        <span style={{fontSize:7.5,fontWeight:700,color:ahead.color,letterSpacing:1,fontFamily:"'DM Mono',monospace"}}>{ahead.code}</span>
-                      </div>
-                      {/* Gap */}
-                      <div style={{flex:1,textAlign:"center"}}>
-                        <span style={{fontFamily:"'DM Mono',monospace",fontSize:8,color:"#FFD700",fontWeight:700}}>{gap.toFixed(2)}s</span>
-                      </div>
-                      {/* Behind driver */}
-                      <div style={{display:"flex",alignItems:"center",gap:3,minWidth:0,justifyContent:"flex-end"}}>
-                        <span style={{fontSize:7.5,fontWeight:700,color:behind.color,letterSpacing:1,fontFamily:"'DM Mono',monospace"}}>{behind.code}</span>
-                        <div style={{width:2,height:12,background:behind.color,borderRadius:1,flexShrink:0}}/>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              );
-            })()}
-
             <div style={{padding:"7px 12px",borderBottom:"1px solid #1a1c28",fontSize:7,letterSpacing:4,color:"#555878",fontWeight:700}}>RACE ORDER</div>
 
             <div style={{flex:1,overflowY:"auto"}}>
@@ -683,7 +632,6 @@ export default function F1App(){
                 const isActive=sel===d.code,isHover=hover===d.code;
                 const leaderGap=i===0?null:((fr.raw[standings[0].code]||0)-(fr.raw[d.code]||0))*lapTimeS;
                 const aheadGap=i===0?null:((fr.raw[standings[i-1].code]||0)-(fr.raw[d.code]||0))*lapTimeS;
-                const isBattle=!isDNF&&!isInPit&&aheadGap!=null&&aheadGap<1.0;
                 const rowColor=isDNF?"rgba(90,20,20,0.3)":isInPit?"rgba(255,140,0,0.08)":isActive?`${d.color}18`:isHover?"#12131f":"transparent";
                 const currentLap=fr.lap?.[d.code]||1;
 
@@ -717,7 +665,7 @@ export default function F1App(){
                       onMouseLeave={()=>setHover(null)}
                       style={{padding:"6px 12px 5px",cursor:isDNF?"default":"pointer",
                         background:rowColor,
-                        borderLeft:`2px solid ${isDNF?"#7a2222":isInPit?"#ff8c00":isBattle?"#FFD70060":(isActive||isHover)?d.color:"transparent"}`,
+                        borderLeft:`2px solid ${isDNF?"#7a2222":isInPit?"#ff8c00":(isActive||isHover)?d.color:"transparent"}`,
                         transition:"background .1s",opacity:isDNF?0.5:1}}>
 
                       {/* Row 1 — position, colour bar, name, gap */}
@@ -738,7 +686,7 @@ export default function F1App(){
                             {isDNF
                               ?<span style={{fontFamily:"'DM Mono',monospace",fontSize:7,color:"#7a3535"}}>DNF</span>
                               :<span style={{fontFamily:"'DM Mono',monospace",fontSize:7,
-                                color:i===0?"#4ade80":isBattle?"#FFD700":"#666a88"}}>
+                                color:i===0?"#4ade80":"#666a88"}}>
                                 {i===0?"LEAD":aheadGap!=null?`+${leaderGap?.toFixed(1)}s`:"—"}
                               </span>}
                           </div>
@@ -775,13 +723,6 @@ export default function F1App(){
                                   fontFamily:"'DM Mono',monospace"}}>S{si+1}</span>
                               </div>
                             ))}
-                            {/* Battle indicator */}
-                            {isBattle&&(
-                              <span style={{marginLeft:"auto",fontSize:6,color:"#FFD700",
-                                fontFamily:"'DM Mono',monospace",fontWeight:700}}>
-                                ⚡{aheadGap?.toFixed(2)}s
-                              </span>
-                            )}
                           </div>
                         )}
                       </div>

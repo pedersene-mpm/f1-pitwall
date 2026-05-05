@@ -279,6 +279,7 @@ const TRAIL_LEN=80, TRACK_LEN_M=5891, SPEED_HIST=120;
 // ─── MAIN COMPONENT ──────────────────────────────────────────────────────────
 export default function F1App(){
   const [view,        setView      ]=useState("sessions");
+  const [layout,      setLayout    ]=useState("panel");  // "panel" | "broadcast"
   const [dataset,     setDataset   ]=useState(buildMock);
   const [dataMode,    setDataMode  ]=useState("SELECT");
   const [step,        setStep      ]=useState(0);
@@ -477,7 +478,21 @@ export default function F1App(){
         <div style={{display:"flex",height:44}}>
           {NAV.map(n=>(<button key={n.id} onClick={()=>setView(n.id)} style={{padding:"0 18px",height:"100%",background:"transparent",border:"none",borderBottom:`2px solid ${view===n.id?"#E10600":"transparent"}`,color:view===n.id?"#fff":"#555878",fontSize:8,letterSpacing:3,cursor:"pointer",fontFamily:"'Orbitron',sans-serif"}}>{n.label}</button>))}
         </div>
-        <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:12,padding:"0 20px"}}>
+        <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:8,padding:"0 20px"}}>
+          {/* Layout toggle — only relevant on race map */}
+          {view==="race"&&(
+            <div style={{display:"flex",gap:2,background:"#0d0d18",borderRadius:4,padding:2,border:"1px solid #1a1c28"}}>
+              {[{id:"panel",icon:"▣",label:"PANEL"},{id:"broadcast",icon:"▬",label:"BROAD"}].map(l=>(
+                <button key={l.id} onClick={()=>setLayout(l.id)} title={l.label} style={{
+                  padding:"3px 8px",borderRadius:3,border:"none",cursor:"pointer",
+                  background:layout===l.id?"#E10600":"transparent",
+                  color:layout===l.id?"#fff":"#555878",
+                  fontSize:9,fontFamily:"'Orbitron',sans-serif",
+                  transition:"all .15s",
+                }}>{l.icon}</button>
+              ))}
+            </div>
+          )}
           <span style={{fontSize:8,color:"#6b6e84",letterSpacing:1,maxWidth:280,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>{sessionName}</span>
           <span style={{fontSize:7,letterSpacing:2,padding:"2px 7px",background:modeBg,color:modeColor,border:`1px solid ${modeColor}50`,borderRadius:3}}>{modeText}</span>
           {dataMode!=="SELECT"&&<div style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:"#7a7d96"}}>LAP <span style={{color:"#fff",fontSize:13,fontWeight:700}}>{leaderLap}</span>/{totalLaps}</div>}
@@ -540,7 +555,9 @@ export default function F1App(){
         )}
 
         {/* ─── RACE MAP VIEW ──────────────────────────────────────────── */}
-        {view==="race"&&(<>
+        {view==="race"&&(
+          <div style={{flex:1,display:"flex",flexDirection:layout==="broadcast"?"column":"row",overflow:"hidden"}}>
+          {/* Track canvas */}
           <div style={{flex:1,position:"relative",overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"center",perspective:"1100px",perspectiveOrigin:"50% 50%"}}>
             <div style={{position:"absolute",inset:0,pointerEvents:"none",zIndex:2,background:"radial-gradient(ellipse at 55% 50%,transparent 45%,#0d0d12 92%)"}}/>
             {dataMode==="SELECT"&&(
@@ -549,7 +566,7 @@ export default function F1App(){
                 <button onClick={()=>setView("sessions")} style={{fontSize:7,letterSpacing:3,color:"#E10600",background:"transparent",border:"1px solid #E10600",padding:"6px 16px",borderRadius:4,cursor:"pointer",fontFamily:"'Orbitron',sans-serif",pointerEvents:"all"}}>← SELECT SESSION</button>
               </div>
             )}
-            <svg viewBox={viewBox} style={{width:"100%",maxWidth:"min(92vw,900px)",maxHeight:"calc(100vh - 130px)",position:"relative",zIndex:1,transform:`rotateX(${tilt}deg)`,transformOrigin:"center 60%",transition:"transform 0.35s cubic-bezier(.4,0,.2,1)"}}>
+            <svg viewBox={viewBox} style={{width:"100%",maxWidth:layout==="broadcast"?"min(98vw,1200px)":"min(92vw,900px)",maxHeight:layout==="broadcast"?"calc(100vh - 200px)":"calc(100vh - 130px)",position:"relative",zIndex:1,transform:`rotateX(${tilt}deg)`,transformOrigin:"center 60%",transition:"transform 0.35s cubic-bezier(.4,0,.2,1)"}}>
               <defs>
                 <filter id="trailBlur"><feGaussianBlur stdDeviation="2"/></filter>
                 <filter id="trackGlow" x="-20%" y="-20%" width="140%" height="140%">
@@ -619,126 +636,192 @@ export default function F1App(){
             </svg>
           </div>
 
-          {/* Race sidebar */}
-          <aside style={{width:220,flexShrink:0,borderLeft:"1px solid #1a1c28",background:"#090910",display:"flex",flexDirection:"column",overflow:"hidden"}}>
+          {/* ── SHARED DRIVER DATA HELPER ── */}
+          {(()=>{
+            // Extract per-driver display data once, reused by both layouts
+            const driverRows = standings.map((d,i)=>{
+              const fr=tl[step]||{};
+              const isDNF=d.retiredAtStep!=null&&step>d.retiredAtStep;
+              const isInPit=Boolean(carPos[d.code]?.isInPit)&&!isDNF;
+              const isActive=sel===d.code, isHover=hover===d.code;
+              const leaderGap=i===0?null:((fr.raw[standings[0].code]||0)-(fr.raw[d.code]||0))*lapTimeS;
+              const currentLap=fr.lap?.[d.code]||1;
 
-            <div style={{padding:"7px 12px",borderBottom:"1px solid #1a1c28",fontSize:7,letterSpacing:4,color:"#555878",fontWeight:700}}>RACE ORDER</div>
+              // Mock sector times (seconds) — replace with real FastF1 export
+              const BASE_SECTOR=[26.1,31.8,19.4]; // approximate Silverstone S1/S2/S3
+              const sectorData=[0,1,2].map(si=>{
+                const era=Math.floor(currentLap/10);
+                const sessionBestHolder=(si*7+era*3)%drivers.length;
+                const myIdx=drivers.findIndex(x=>x.code===d.code);
+                const variance=(d.code.charCodeAt(0)*3+si*11+currentLap*7)%20*0.05-0.5;
+                const t=(BASE_SECTOR[si]+variance).toFixed(1);
+                let color;
+                if(myIdx===sessionBestHolder) color="#a855f7";
+                else{
+                  const pbSeed=(d.code.charCodeAt(0)*3+si*11+currentLap*7)%10;
+                  color=pbSeed<4?"#00ff88":"#FFD700";
+                }
+                return {t, color};
+              });
 
-            <div style={{flex:1,overflowY:"auto"}}>
-              {standings.map((d,i)=>{
-                const fr=tl[step]||{};
-                const isDNF=d.retiredAtStep!=null&&step>d.retiredAtStep;
-                const isInPit=Boolean(carPos[d.code]?.isInPit)&&!isDNF;
-                const isActive=sel===d.code,isHover=hover===d.code;
-                const leaderGap=i===0?null:((fr.raw[standings[0].code]||0)-(fr.raw[d.code]||0))*lapTimeS;
-                const aheadGap=i===0?null:((fr.raw[standings[i-1].code]||0)-(fr.raw[d.code]||0))*lapTimeS;
-                const rowColor=isDNF?"rgba(90,20,20,0.3)":isInPit?"rgba(255,140,0,0.08)":isActive?`${d.color}18`:isHover?"#12131f":"transparent";
-                const currentLap=fr.lap?.[d.code]||1;
+              return {d,i,isDNF,isInPit,isActive,isHover,leaderGap,currentLap,sectorData};
+            });
 
-                // Sector indicator colors
-                // Purple = session best (faster than any other driver on that sector, all race so far)
-                // Green  = personal best (driver's own best on that sector)
-                // Yellow = slower than personal best
-                // Mocked deterministically until real FastF1 sector_times are exported.
-                // Key: only ONE driver can hold purple per sector at any moment.
-                const sectorColors=(()=>{
-                  return[0,1,2].map(si=>{
-                    // Simulate a session-best holder per sector
-                    // Seed based on sector + step range (changes every ~10 laps)
-                    const era = Math.floor(currentLap / 10);
-                    const sessionBestHolder = (si * 7 + era * 3) % drivers.length;
-                    const myIdx = drivers.findIndex(x=>x.code===d.code);
-                    if(myIdx===sessionBestHolder){
-                      return {color:"#a855f7"}; // purple — session best
-                    }
-                    // Personal best: green if within driver's "good" laps
-                    const pbSeed=(d.code.charCodeAt(0)*3+si*11+currentLap*7)%10;
-                    if(pbSeed<4) return {color:"#00ff88"}; // green — personal best
-                    return {color:"#FFD700"}; // yellow — slower
-                  });
-                })();
+            // ── PANEL LAYOUT (right sidebar) ──
+            if(layout==="panel") return (
+              <aside style={{width:220,flexShrink:0,borderLeft:"1px solid #1a1c28",
+                background:"#090910",display:"flex",flexDirection:"column",overflow:"hidden"}}>
+                <div style={{padding:"7px 12px",borderBottom:"1px solid #1a1c28",
+                  fontSize:7,letterSpacing:4,color:"#555878",fontWeight:700}}>RACE ORDER</div>
+                <div style={{flex:1,overflowY:"auto"}}>
+                  {driverRows.map(({d,i,isDNF,isInPit,isActive,isHover,leaderGap,sectorData})=>{
+                    const rowColor=isDNF?"rgba(90,20,20,0.3)":isInPit?"rgba(255,140,0,0.08)":isActive?`${d.color}18`:isHover?"#12131f":"transparent";
+                    return(
+                      <div key={d.code}>
+                        <div onClick={()=>!isDNF&&setSel(isActive?null:d.code)}
+                          onMouseEnter={()=>!isDNF&&setHover(d.code)}
+                          onMouseLeave={()=>setHover(null)}
+                          style={{padding:"6px 12px 5px",cursor:isDNF?"default":"pointer",
+                            background:rowColor,
+                            borderLeft:`2px solid ${isDNF?"#7a2222":isInPit?"#ff8c00":(isActive||isHover)?d.color:"transparent"}`,
+                            transition:"background .1s",opacity:isDNF?0.5:1}}>
+                          {/* Position + name + gap */}
+                          <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}>
+                            <span style={{fontFamily:"'DM Mono',monospace",fontSize:11,fontWeight:700,
+                              width:16,textAlign:"center",flexShrink:0,
+                              color:isDNF?"#7a2222":isInPit?"#ff8c00":i===0?"#FFD700":i<3?d.color:"#505470"}}>
+                              {isDNF?"✕":i+1}
+                            </span>
+                            <div style={{width:2,height:22,borderRadius:1,flexShrink:0,
+                              background:isDNF?"#7a2222":isInPit?"#ff8c00":d.color}}/>
+                            <div style={{flex:1,minWidth:0}}>
+                              <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline"}}>
+                                <span style={{fontSize:9,letterSpacing:2,fontWeight:600,
+                                  color:isDNF?"#7a3535":isInPit?"#ff8c00":(isActive||isHover)?d.color:"#9a9eb8"}}>
+                                  {d.code}
+                                </span>
+                                {isDNF
+                                  ?<span style={{fontFamily:"'DM Mono',monospace",fontSize:7,color:"#7a3535"}}>DNF</span>
+                                  :<span style={{fontFamily:"'DM Mono',monospace",fontSize:7,color:i===0?"#4ade80":"#666a88"}}>
+                                    {i===0?"LEAD":`+${leaderGap!=null?leaderGap.toFixed(1):"?"}s`}
+                                  </span>}
+                              </div>
+                              <div style={{fontSize:5.5,color:"#44475e",letterSpacing:1,
+                                overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>{d.team}</div>
+                            </div>
+                          </div>
+                          {/* Sector bars + times */}
+                          <div style={{paddingLeft:24}}>
+                            {isInPit?(
+                              <span style={{fontSize:6.5,letterSpacing:2,color:"#ff8c00",fontWeight:700,
+                                background:"rgba(255,140,0,0.12)",border:"1px solid rgba(255,140,0,0.3)",
+                                borderRadius:3,padding:"1px 6px",fontFamily:"'Orbitron',sans-serif"}}>PIT STOP</span>
+                            ):isDNF?(
+                              <span style={{fontSize:6,color:"#7a3535",fontFamily:"'DM Mono',monospace"}}>retired</span>
+                            ):(
+                              <div style={{display:"flex",gap:6}}>
+                                {sectorData.map((sc,si)=>(
+                                  <div key={si} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
+                                    <div style={{width:36,height:3,borderRadius:2,background:sc.color,
+                                      boxShadow:`0 0 4px ${sc.color}80`}}/>
+                                    <span style={{fontSize:6,color:sc.color,fontFamily:"'DM Mono',monospace",
+                                      opacity:0.85}}>{sc.t}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <div style={{height:1,background:"#0f1020",marginLeft:12}}/>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div onClick={()=>setView("sessions")} style={{padding:"10px 12px",borderTop:"1px solid #1a1c28",
+                  cursor:"pointer",display:"flex",alignItems:"center",gap:8,background:"#0a0b14"}}>
+                  <span style={{fontSize:7,letterSpacing:2,color:"#555878"}}>← CHANGE SESSION</span>
+                </div>
+              </aside>
+            );
 
-                return(
-                  <div key={d.code}>
-                    <div onClick={()=>!isDNF&&setSel(isActive?null:d.code)}
+            // ── BROADCAST LAYOUT (horizontal bottom strip) ──
+            return (
+              <div style={{height:136,flexShrink:0,borderTop:"1px solid #1a1c28",
+                background:"#090910",display:"flex",flexDirection:"column",overflow:"hidden"}}>
+                {/* Header row */}
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",
+                  padding:"4px 16px",borderBottom:"1px solid #1a1c28",flexShrink:0}}>
+                  <span style={{fontSize:7,letterSpacing:4,color:"#555878",fontWeight:700}}>RACE ORDER</span>
+                  <div style={{display:"flex",alignItems:"center",gap:12}}>
+                    <div style={{display:"flex",alignItems:"center",gap:5}}>
+                      {[["#a855f7","SB"],["#00ff88","PB"],["#FFD700","OK"]].map(([c,l])=>(
+                        <div key={l} style={{display:"flex",alignItems:"center",gap:2}}>
+                          <div style={{width:10,height:2,borderRadius:1,background:c,opacity:.7}}/>
+                          <span style={{fontSize:5.5,color:"#44475e",letterSpacing:1}}>{l}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div onClick={()=>setView("sessions")} style={{cursor:"pointer"}}>
+                      <span style={{fontSize:6,letterSpacing:2,color:"#555878"}}>← SESSIONS</span>
+                    </div>
+                  </div>
+                </div>
+                {/* Scrollable driver cards */}
+                <div style={{flex:1,display:"flex",overflowX:"auto",gap:0,alignItems:"stretch",
+                  scrollbarWidth:"none"}}>
+                  {driverRows.map(({d,i,isDNF,isInPit,isActive,isHover,leaderGap,sectorData})=>(
+                    <div key={d.code}
+                      onClick={()=>!isDNF&&setSel(isActive?null:d.code)}
                       onMouseEnter={()=>!isDNF&&setHover(d.code)}
                       onMouseLeave={()=>setHover(null)}
-                      style={{padding:"6px 12px 5px",cursor:isDNF?"default":"pointer",
-                        background:rowColor,
-                        borderLeft:`2px solid ${isDNF?"#7a2222":isInPit?"#ff8c00":(isActive||isHover)?d.color:"transparent"}`,
-                        transition:"background .1s",opacity:isDNF?0.5:1}}>
-
-                      {/* Row 1 — position, colour bar, name, gap */}
-                      <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}>
-                        <span style={{fontFamily:"'DM Mono',monospace",fontSize:11,fontWeight:700,
-                          width:16,textAlign:"center",flexShrink:0,
+                      style={{
+                        minWidth:88, flexShrink:0,
+                        padding:"8px 10px",
+                        cursor:isDNF?"default":"pointer",
+                        background:isActive?`${d.color}15`:isHover?"#13131f":"transparent",
+                        borderRight:"1px solid #0f1020",
+                        borderTop:`2px solid ${isDNF?"#7a2222":isInPit?"#ff8c00":(isActive||isHover)?d.color:"transparent"}`,
+                        opacity:isDNF?0.45:1,
+                        transition:"background .1s",
+                        display:"flex",flexDirection:"column",gap:4,
+                      }}>
+                      {/* P# and code */}
+                      <div style={{display:"flex",alignItems:"center",gap:5}}>
+                        <span style={{fontFamily:"'DM Mono',monospace",fontSize:10,fontWeight:700,
                           color:isDNF?"#7a2222":isInPit?"#ff8c00":i===0?"#FFD700":i<3?d.color:"#505470"}}>
                           {isDNF?"✕":i+1}
                         </span>
-                        <div style={{width:2,height:22,borderRadius:1,flexShrink:0,
-                          background:isDNF?"#7a2222":isInPit?"#ff8c00":d.color}}/>
-                        <div style={{flex:1,minWidth:0}}>
-                          <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline"}}>
-                            <span style={{fontSize:9,letterSpacing:2,fontWeight:600,
-                              color:isDNF?"#7a3535":isInPit?"#ff8c00":(isActive||isHover)?d.color:"#9a9eb8"}}>
-                              {d.code}
-                            </span>
-                            {isDNF
-                              ?<span style={{fontFamily:"'DM Mono',monospace",fontSize:7,color:"#7a3535"}}>DNF</span>
-                              :<span style={{fontFamily:"'DM Mono',monospace",fontSize:7,
-                                color:i===0?"#4ade80":"#666a88"}}>
-                                {i===0?"LEAD":aheadGap!=null?`+${leaderGap?.toFixed(1)}s`:"—"}
-                              </span>}
-                          </div>
-                          <div style={{fontSize:5.5,color:"#44475e",letterSpacing:1,
-                            overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>
-                            {d.team}
-                          </div>
+                        <div style={{width:2,height:14,borderRadius:1,background:isDNF?"#7a2222":isInPit?"#ff8c00":d.color,flexShrink:0}}/>
+                        <span style={{fontSize:8,fontWeight:700,letterSpacing:1,
+                          color:isDNF?"#7a3535":isInPit?"#ff8c00":(isActive||isHover)?d.color:"#9a9eb8"}}>
+                          {d.code}
+                        </span>
+                      </div>
+                      {/* Gap to leader */}
+                      <div style={{fontFamily:"'DM Mono',monospace",fontSize:6.5,
+                        color:isDNF?"#7a3535":isInPit?"#ff8c00":i===0?"#4ade80":"#555878"}}>
+                        {isDNF?"DNF":isInPit?"PIT":i===0?"LEADER":`+${leaderGap!=null?leaderGap.toFixed(1):"?"}s`}
+                      </div>
+                      {/* Sector bars + times */}
+                      {!isDNF&&!isInPit&&(
+                        <div style={{display:"flex",gap:3,marginTop:2}}>
+                          {sectorData.map((sc,si)=>(
+                            <div key={si} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1}}>
+                              <div style={{width:18,height:3,borderRadius:1,background:sc.color,
+                                boxShadow:`0 0 3px ${sc.color}80`}}/>
+                              <span style={{fontSize:5.5,color:sc.color,fontFamily:"'DM Mono',monospace",
+                                opacity:0.8}}>{sc.t}</span>
+                            </div>
+                          ))}
                         </div>
-                      </div>
-
-                      {/* Row 2 — sector indicators or pit/dnf status */}
-                      <div style={{paddingLeft:24}}>
-                        {isInPit?(
-                          <span style={{fontSize:6.5,letterSpacing:2,color:"#ff8c00",fontWeight:700,
-                            background:"rgba(255,140,0,0.12)",border:"1px solid rgba(255,140,0,0.3)",
-                            borderRadius:3,padding:"1px 6px",fontFamily:"'Orbitron',sans-serif"}}>
-                            PIT STOP
-                          </span>
-                        ):isDNF?(
-                          <span style={{fontSize:6,letterSpacing:1,color:"#7a3535",
-                            fontFamily:"'DM Mono',monospace"}}>retired</span>
-                        ):(
-                          <div style={{display:"flex",alignItems:"center",gap:4}}>
-                            {/* S1 S2 S3 sector mini-bars */}
-                            {sectorColors.map((sc,si)=>(
-                              <div key={si} style={{display:"flex",alignItems:"center",gap:2}}>
-                                <div style={{
-                                  width:28,height:4,borderRadius:2,
-                                  background:sc.color,
-                                  boxShadow:`0 0 4px ${sc.color}80`,
-                                  opacity:0.9,
-                                }}/>
-                                <span style={{fontSize:5,color:"#333550",
-                                  fontFamily:"'DM Mono',monospace"}}>S{si+1}</span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
+                      )}
                     </div>
-                    {/* Subtle divider */}
-                    <div style={{height:1,background:"#0f1020",marginLeft:12}}/>
-                  </div>
-                );
-              })}
-            </div>
-
-            <div onClick={()=>setView("sessions")} style={{padding:"10px 12px",borderTop:"1px solid #1a1c28",cursor:"pointer",display:"flex",alignItems:"center",gap:8,background:"#0a0b14"}}>
-              <span style={{fontSize:7,letterSpacing:2,color:"#555878"}}>← CHANGE SESSION</span>
-            </div>
-          </aside>
-        </>)}
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+        </div>)}
 
         {/* ─── DRIVER VIEW ────────────────────────────────────────────── */}
         {view==="driver"&&(

@@ -561,20 +561,17 @@ export default function F1App(){
                   <stop offset="55%" stopColor="#0d0d12" stopOpacity="0"/>
                 </linearGradient>
               </defs>
-              {/* Teal ambient glow behind track */}
-              <path d={trackD} fill="none" stroke="#004040" strokeWidth={32} strokeOpacity={0.04} style={{filter:"url(#trackGlow)"}}/>
+              {/* Ambient glow */}
+              <path d={trackD} fill="none" stroke="#1a3acc" strokeWidth={32} strokeOpacity={0.04} style={{filter:"url(#trackGlow)"}}/>
               {/* Pit lane */}
               {pitLaneD&&<><path d={pitLaneD} fill="none" stroke="#323540" strokeWidth={14} strokeLinecap="round"/><path d={pitLaneD} fill="none" stroke="#3c3f50" strokeWidth={10} strokeLinecap="round"/><path d={pitLaneD} fill="none" stroke="#464958" strokeWidth={1.5} strokeDasharray="4 6" strokeOpacity={0.6} strokeLinecap="round"/></>}
-              {/* Track — dark teal, subtle F1 TV aesthetic */}
-              {/* Outer kerb edge */}
-              <path d={trackD} fill="none" stroke="#001a1a" strokeWidth={24} strokeLinecap="round" strokeLinejoin="round"/>
-              {/* Teal asphalt surface */}
-              <path d={trackD} fill="none" stroke="#002828" strokeWidth={20} strokeLinecap="round" strokeLinejoin="round"/>
-              <path d={trackD} fill="none" stroke="#003838" strokeWidth={16} strokeLinecap="round" strokeLinejoin="round"/>
-              {/* Subtle inner teal shine */}
-              <path d={trackD} fill="none" stroke="#005050" strokeWidth={10} strokeLinecap="round" strokeLinejoin="round" strokeOpacity={0.7}/>
-              {/* Very faint centre dash */}
-              <path d={trackD} fill="none" stroke="#006868" strokeWidth={0.8} strokeDasharray="5 10" strokeOpacity={.2}/>
+              {/* Track — original dark surface */}
+              <path d={trackD} fill="none" stroke="#2a2d3a" strokeWidth={24} strokeLinecap="round" strokeLinejoin="round"/>
+              <path d={trackD} fill="none" stroke="#1e2030" strokeWidth={20} strokeLinecap="round" strokeLinejoin="round"/>
+              <path d={trackD} fill="none" stroke="#252838" strokeWidth={16} strokeLinecap="round" strokeLinejoin="round"/>
+              <path d={trackD} fill="none" stroke="#2e3248" strokeWidth={10} strokeLinecap="round" strokeLinejoin="round" strokeOpacity={0.7}/>
+              {/* Centre dash */}
+              <path d={trackD} fill="none" stroke="#343748" strokeWidth={0.8} strokeDasharray="5 10" strokeOpacity={.45}/>
               {/* DRS detection point markers — dot only at zone start */}
               {wp[drs1[0]]&&(<g>
                 <circle cx={wp[drs1[0]][0]} cy={wp[drs1[0]][1]} r={5} fill="#facc15" opacity={0.85}/>
@@ -593,7 +590,7 @@ export default function F1App(){
               <line x1={sfX-2} y1={sfY-14} x2={sfX-2} y2={sfY+10} stroke="#ffffff" strokeWidth={2} strokeOpacity={.6}/>
               <text x={sfX+4} y={sfY+3} fill="#7a7d96" fontSize={5.5} fontFamily="'DM Mono',monospace">S/F</text>
               {/* Corner labels */}
-              {cornerLabels.map(([name,x,y,anchor])=>(<text key={name} x={x} y={y} fill="#006060" fontSize={5} textAnchor={anchor} fontFamily="'Orbitron',sans-serif" letterSpacing={.8}>{name}</text>))}
+              {cornerLabels.map(([name,x,y,anchor])=>(<text key={name} x={x} y={y} fill="#3a3e58" fontSize={4.8} textAnchor={anchor} fontFamily="'Orbitron',sans-serif" letterSpacing={.7}>{name}</text>))}
               {/* Battle lines */}
               {standings.map((d,i)=>{
                 if(i===0)return null;

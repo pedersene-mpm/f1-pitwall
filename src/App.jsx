@@ -630,53 +630,169 @@ export default function F1App(){
           </div>
 
           {/* Race sidebar */}
-          <aside style={{width:210,flexShrink:0,borderLeft:"1px solid #1a1c28",background:"#090910",display:"flex",flexDirection:"column",overflow:"hidden"}}>
-            <div style={{padding:"8px 12px",borderBottom:"1px solid #1a1c28",fontSize:7,letterSpacing:4,color:"#555878",fontWeight:700}}>RACE ORDER</div>
+          <aside style={{width:220,flexShrink:0,borderLeft:"1px solid #1a1c28",background:"#090910",display:"flex",flexDirection:"column",overflow:"hidden"}}>
+
+            {/* ── BATTLES PANEL ── shown at top when any battles active */}
+            {(()=>{
+              const fr=tl[step]||{};
+              const battles=standings.reduce((acc,d,i)=>{
+                if(i===0)return acc;
+                const isDNF=d.retiredAtStep!=null&&step>d.retiredAtStep;
+                const isInPit=Boolean(carPos[d.code]?.isInPit);
+                if(isDNF||isInPit)return acc;
+                const gap=((fr.raw[standings[i-1].code]||0)-(fr.raw[d.code]||0))*lapTimeS;
+                if(gap<1.0) acc.push({ahead:standings[i-1],behind:d,gap});
+                return acc;
+              },[]);
+              if(!battles.length) return null;
+              return(
+                <div style={{borderBottom:"1px solid #1a1c28",background:"#0c0b00"}}>
+                  <div style={{padding:"5px 12px 3px",display:"flex",alignItems:"center",gap:6}}>
+                    <span style={{fontSize:7,color:"#FFD700",letterSpacing:3,fontWeight:700}}>⚡ BATTLES</span>
+                    <span style={{fontSize:6,color:"#555444",letterSpacing:1}}>{battles.length} active</span>
+                  </div>
+                  {battles.map(({ahead,behind,gap})=>(
+                    <div key={behind.code} style={{padding:"4px 12px",display:"flex",alignItems:"center",gap:6,borderTop:"1px solid #1a1600"}}>
+                      {/* Ahead driver */}
+                      <div style={{display:"flex",alignItems:"center",gap:3,minWidth:0}}>
+                        <div style={{width:2,height:12,background:ahead.color,borderRadius:1,flexShrink:0}}/>
+                        <span style={{fontSize:7.5,fontWeight:700,color:ahead.color,letterSpacing:1,fontFamily:"'DM Mono',monospace"}}>{ahead.code}</span>
+                      </div>
+                      {/* Gap */}
+                      <div style={{flex:1,textAlign:"center"}}>
+                        <span style={{fontFamily:"'DM Mono',monospace",fontSize:8,color:"#FFD700",fontWeight:700}}>{gap.toFixed(2)}s</span>
+                      </div>
+                      {/* Behind driver */}
+                      <div style={{display:"flex",alignItems:"center",gap:3,minWidth:0,justifyContent:"flex-end"}}>
+                        <span style={{fontSize:7.5,fontWeight:700,color:behind.color,letterSpacing:1,fontFamily:"'DM Mono',monospace"}}>{behind.code}</span>
+                        <div style={{width:2,height:12,background:behind.color,borderRadius:1,flexShrink:0}}/>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+
+            <div style={{padding:"7px 12px",borderBottom:"1px solid #1a1c28",fontSize:7,letterSpacing:4,color:"#555878",fontWeight:700}}>RACE ORDER</div>
+
             <div style={{flex:1,overflowY:"auto"}}>
               {standings.map((d,i)=>{
                 const fr=tl[step]||{};
                 const isDNF=d.retiredAtStep!=null&&step>d.retiredAtStep;
-                const sh=speedHist[d.code]||[];const spd=sh[sh.length-1]||0;
                 const isInPit=Boolean(carPos[d.code]?.isInPit)&&!isDNF;
                 const isActive=sel===d.code,isHover=hover===d.code;
                 const leaderGap=i===0?null:((fr.raw[standings[0].code]||0)-(fr.raw[d.code]||0))*lapTimeS;
                 const aheadGap=i===0?null:((fr.raw[standings[i-1].code]||0)-(fr.raw[d.code]||0))*lapTimeS;
                 const isBattle=!isDNF&&!isInPit&&aheadGap!=null&&aheadGap<1.0;
                 const rowColor=isDNF?"rgba(90,20,20,0.3)":isInPit?"rgba(255,140,0,0.08)":isActive?`${d.color}18`:isHover?"#12131f":"transparent";
-                return(<div key={d.code}>
-                  {isBattle&&i>0&&<div style={{padding:"3px 12px",background:"rgba(255,215,0,0.07)",borderTop:"1px solid #FFD70030",borderBottom:"1px solid #FFD70030",display:"flex",alignItems:"center",gap:5}}>
-                    <span style={{color:"#FFD700",fontSize:8}}>⚡</span>
-                    <span style={{flex:1,fontSize:6,letterSpacing:2,color:"#FFD700",fontWeight:700}}>BATTLE</span>
-                    <span style={{fontFamily:"'DM Mono',monospace",fontSize:7,color:"#FFD700"}}>{aheadGap.toFixed(2)}s</span>
-                  </div>}
-                  <div onClick={()=>!isDNF&&setSel(isActive?null:d.code)} onMouseEnter={()=>!isDNF&&setHover(d.code)} onMouseLeave={()=>setHover(null)}
-                    style={{padding:"6px 12px",cursor:isDNF?"default":"pointer",background:rowColor,borderLeft:`2px solid ${isDNF?"#7a2222":isInPit?"#ff8c00":(isActive||isHover)?d.color:"transparent"}`,transition:"background .1s",opacity:isDNF?0.5:1}}>
-                    <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:3}}>
-                      <span style={{fontFamily:"'DM Mono',monospace",fontSize:11,fontWeight:700,width:16,textAlign:"center",color:isDNF?"#7a2222":isInPit?"#ff8c00":i===0?"#FFD700":i<3?d.color:"#505470"}}>{isDNF?"✕":i+1}</span>
-                      <div style={{width:2,height:18,borderRadius:1,flexShrink:0,background:isDNF?"#7a2222":isInPit?"#ff8c00":d.color}}/>
-                      <div style={{flex:1}}>
-                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline"}}>
-                          <span style={{fontSize:9,letterSpacing:2,fontWeight:600,color:isDNF?"#7a3535":isInPit?"#ff8c00":(isActive||isHover)?d.color:"#9a9eb8"}}>{d.code}</span>
-                          {isDNF
-                            ?<span style={{fontFamily:"'DM Mono',monospace",fontSize:7,color:"#7a3535"}}>DNF</span>
-                            :<span style={{fontFamily:"'DM Mono',monospace",fontSize:7,color:i===0?"#4ade80":"#666a88"}}>{i===0?"LEAD":`+${leaderGap!=null?leaderGap.toFixed(1):"?"}s`}</span>}
+                const currentLap=fr.lap?.[d.code]||1;
+
+                // Sector indicator colors
+                // Purple = session best (faster than any other driver on that sector, all race so far)
+                // Green  = personal best (driver's own best on that sector)
+                // Yellow = slower than personal best
+                // Mocked deterministically until real FastF1 sector_times are exported.
+                // Key: only ONE driver can hold purple per sector at any moment.
+                const sectorColors=(()=>{
+                  return[0,1,2].map(si=>{
+                    // Simulate a session-best holder per sector
+                    // Seed based on sector + step range (changes every ~10 laps)
+                    const era = Math.floor(currentLap / 10);
+                    const sessionBestHolder = (si * 7 + era * 3) % drivers.length;
+                    const myIdx = drivers.findIndex(x=>x.code===d.code);
+                    if(myIdx===sessionBestHolder){
+                      return {color:"#a855f7"}; // purple — session best
+                    }
+                    // Personal best: green if within driver's "good" laps
+                    const pbSeed=(d.code.charCodeAt(0)*3+si*11+currentLap*7)%10;
+                    if(pbSeed<4) return {color:"#00ff88"}; // green — personal best
+                    return {color:"#FFD700"}; // yellow — slower
+                  });
+                })();
+
+                return(
+                  <div key={d.code}>
+                    <div onClick={()=>!isDNF&&setSel(isActive?null:d.code)}
+                      onMouseEnter={()=>!isDNF&&setHover(d.code)}
+                      onMouseLeave={()=>setHover(null)}
+                      style={{padding:"6px 12px 5px",cursor:isDNF?"default":"pointer",
+                        background:rowColor,
+                        borderLeft:`2px solid ${isDNF?"#7a2222":isInPit?"#ff8c00":isBattle?"#FFD70060":(isActive||isHover)?d.color:"transparent"}`,
+                        transition:"background .1s",opacity:isDNF?0.5:1}}>
+
+                      {/* Row 1 — position, colour bar, name, gap */}
+                      <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}>
+                        <span style={{fontFamily:"'DM Mono',monospace",fontSize:11,fontWeight:700,
+                          width:16,textAlign:"center",flexShrink:0,
+                          color:isDNF?"#7a2222":isInPit?"#ff8c00":i===0?"#FFD700":i<3?d.color:"#505470"}}>
+                          {isDNF?"✕":i+1}
+                        </span>
+                        <div style={{width:2,height:22,borderRadius:1,flexShrink:0,
+                          background:isDNF?"#7a2222":isInPit?"#ff8c00":d.color}}/>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline"}}>
+                            <span style={{fontSize:9,letterSpacing:2,fontWeight:600,
+                              color:isDNF?"#7a3535":isInPit?"#ff8c00":(isActive||isHover)?d.color:"#9a9eb8"}}>
+                              {d.code}
+                            </span>
+                            {isDNF
+                              ?<span style={{fontFamily:"'DM Mono',monospace",fontSize:7,color:"#7a3535"}}>DNF</span>
+                              :<span style={{fontFamily:"'DM Mono',monospace",fontSize:7,
+                                color:i===0?"#4ade80":isBattle?"#FFD700":"#666a88"}}>
+                                {i===0?"LEAD":aheadGap!=null?`+${leaderGap?.toFixed(1)}s`:"—"}
+                              </span>}
+                          </div>
+                          <div style={{fontSize:5.5,color:"#44475e",letterSpacing:1,
+                            overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>
+                            {d.team}
+                          </div>
                         </div>
-                        <div style={{fontSize:5.5,color:"#44475e",letterSpacing:1,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>{d.team}</div>
+                      </div>
+
+                      {/* Row 2 — sector indicators or pit/dnf status */}
+                      <div style={{paddingLeft:24}}>
+                        {isInPit?(
+                          <span style={{fontSize:6.5,letterSpacing:2,color:"#ff8c00",fontWeight:700,
+                            background:"rgba(255,140,0,0.12)",border:"1px solid rgba(255,140,0,0.3)",
+                            borderRadius:3,padding:"1px 6px",fontFamily:"'Orbitron',sans-serif"}}>
+                            PIT STOP
+                          </span>
+                        ):isDNF?(
+                          <span style={{fontSize:6,letterSpacing:1,color:"#7a3535",
+                            fontFamily:"'DM Mono',monospace"}}>retired</span>
+                        ):(
+                          <div style={{display:"flex",alignItems:"center",gap:4}}>
+                            {/* S1 S2 S3 sector mini-bars */}
+                            {sectorColors.map((sc,si)=>(
+                              <div key={si} style={{display:"flex",alignItems:"center",gap:2}}>
+                                <div style={{
+                                  width:28,height:4,borderRadius:2,
+                                  background:sc.color,
+                                  boxShadow:`0 0 4px ${sc.color}80`,
+                                  opacity:0.9,
+                                }}/>
+                                <span style={{fontSize:5,color:"#333550",
+                                  fontFamily:"'DM Mono',monospace"}}>S{si+1}</span>
+                              </div>
+                            ))}
+                            {/* Battle indicator */}
+                            {isBattle&&(
+                              <span style={{marginLeft:"auto",fontSize:6,color:"#FFD700",
+                                fontFamily:"'DM Mono',monospace",fontWeight:700}}>
+                                ⚡{aheadGap?.toFixed(2)}s
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
-                    <div style={{display:"flex",alignItems:"center",gap:5,paddingLeft:22}}>
-                      {isInPit
-                        ?<span style={{fontSize:6.5,letterSpacing:2,color:"#ff8c00",fontWeight:700,background:"rgba(255,140,0,0.12)",border:"1px solid rgba(255,140,0,0.35)",borderRadius:3,padding:"1px 6px",fontFamily:"'Orbitron',sans-serif"}}>PIT STOP</span>
-                        :isDNF
-                          ?<span style={{fontSize:6,letterSpacing:1,color:"#7a3535",fontFamily:"'DM Mono',monospace"}}>retired</span>
-                          :<><span style={{fontFamily:"'DM Mono',monospace",fontSize:7,color:"#666a88"}}>{spd}<span style={{fontSize:5,color:"#444660"}}> km/h</span></span>
-                            {aheadGap!=null&&aheadGap<3&&<span style={{fontFamily:"'DM Mono',monospace",fontSize:6,color:isBattle?"#FFD700":"#505470",marginLeft:"auto"}}>{aheadGap.toFixed(2)}s↑</span>}
-                          </>}
-                    </div>
+                    {/* Subtle divider */}
+                    <div style={{height:1,background:"#0f1020",marginLeft:12}}/>
                   </div>
-                </div>);
+                );
               })}
             </div>
+
             <div onClick={()=>setView("sessions")} style={{padding:"10px 12px",borderTop:"1px solid #1a1c28",cursor:"pointer",display:"flex",alignItems:"center",gap:8,background:"#0a0b14"}}>
               <span style={{fontSize:7,letterSpacing:2,color:"#555878"}}>← CHANGE SESSION</span>
             </div>

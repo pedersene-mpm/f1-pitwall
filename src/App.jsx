@@ -195,8 +195,9 @@ const MOCK_STEPS=5000,MOCK_LAPS=52,MOCK_LAP_S=89;
 const SPD_F=MOCK_DRIVERS.map((_,i)=>1+i*0.001+Math.sin(i*1.9+0.3)*0.0006);
 const GRD_O=MOCK_DRIVERS.map((_,i)=>-i*(0.9/MOCK_LAPS));
 const MOCK_TL=(()=>{const out=[];for(let s=0;s<=MOCK_STEPS;s++){const t=s/MOCK_STEPS,fr={pos:{},raw:{},lap:{}};MOCK_DRIVERS.forEach((d,i)=>{const raw=(t*MOCK_LAPS)/SPD_F[i]+GRD_O[i];fr.raw[d.code]=raw;fr.pos[d.code]=((raw%1)+1)%1;fr.lap[d.code]=Math.max(1,Math.min(MOCK_LAPS,Math.floor(raw)+1));});out.push(fr);}return out;})();
-const MOCK_CORNER_LABELS=[["ABBEY",510,248,"start"],["FARM",572,72,"start"],["VILLAGE",618,88,"start"],["THE LOOP",645,152,"start"],["AINTREE",556,202,"middle"],["WELLINGTON",372,183,"middle"],["BROOKLANDS",168,241,"end"],["LUFFIELD",166,333,"end"],["COPSE",303,189,"middle"],["MAGGOTTS",356,265,"start"],["BECKETTS",260,336,"end"],["CHAPEL",296,393,"start"],["HANGAR",455,343,"middle"],["STOWE",595,396,"start"],["VALE",590,462,"start"],["CLUB",450,500,"middle"]];
-const TURN_NAMES={1:"ABBEY",2:"FARM",3:"VILLAGE",4:"THE LOOP",5:"AINTREE",6:"BROOKLANDS",7:"LUFFIELD",8:"WOODCOTE",9:"COPSE",10:"MAGGOTTS",11:"BECKETTS",12:"BECKETTS",13:"BECKETTS",14:"CHAPEL",15:"STOWE",16:"VALE",17:"VALE",18:"CLUB"};
+const MOCK_CORNER_LABELS=[["T1",510,248,"start"],["T2",572,72,"start"],["T3",618,88,"start"],["T4",645,152,"start"],["T5",556,202,"middle"],["T6",168,241,"end"],["T7",166,333,"end"],["T8",303,189,"middle"],["T9",356,265,"start"],["T10",260,336,"end"],["T11",296,393,"start"],["T12",455,343,"middle"],["T15",595,396,"start"],["T16",590,462,"start"],["T18",450,500,"middle"]];
+// Circuit-specific corner name lookups — add per circuit as needed
+// const TURN_NAMES_SILVERSTONE={1:"ABBEY",2:"FARM",...};
 
 function buildMock(){return{wp:MOCK_WP,tl:MOCK_TL,drivers:MOCK_DRIVERS,steps:MOCK_STEPS,totalLaps:MOCK_LAPS,lapTimeS:MOCK_LAP_S,viewBox:"145 35 525 470",cornerLabels:MOCK_CORNER_LABELS,s1end:32,s2end:54,drs1:[20,24],drs2:[50,54],sessionName:"Select a session →",pitLanePath:[]};}
 
@@ -262,7 +263,10 @@ function processRealData(json){
 
   const seen=new Set(),cornerLabels=[];
   (track.corners||[]).forEach(c=>{
-    const name=TURN_NAMES[c.number]||`T${c.number}`;
+    // Use T1, T2 etc — always accurate for any circuit.
+    // Named lookups (ABBEY, COPSE etc) are circuit-specific and added per-circuit in future.
+    const num=c.number, letter=c.letter||"";
+    const name=`T${num}${letter}`;
     if(seen.has(name))return;seen.add(name);cornerLabels.push([name,c.x,c.y,"middle"]);
   });
   return{wp,tl,drivers,steps,totalLaps:race.total_laps,lapTimeS:race.lap_time_s||88,

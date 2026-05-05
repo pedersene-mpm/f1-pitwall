@@ -775,7 +775,7 @@ export default function F1App(){
                 const isActive=sel===d.code,isHover=hover===d.code;
                 const baseOpacity=isDNF?0.18:(focused&&!isActive&&!isHover?0.22:1);
                 const depth=Math.max(0,Math.min(1,(p.y-vbY)/vbH));
-                const carScale=(tilt>0?1.0-depth*0.38:1.0)*0.75;
+                const carScale=(tilt>0?1.0-depth*0.38:1.0)*0.71;
                 return(<g key={d.code} style={{cursor:isDNF?"default":"pointer",opacity:baseOpacity,transition:"opacity .15s"}}
                   onClick={()=>!isDNF&&setSel(isActive?null:d.code)} onMouseEnter={()=>!isDNF&&setHover(d.code)} onMouseLeave={()=>setHover(null)}>
                   {!isDNF&&!isInPit&&<ellipse cx={p.x} cy={p.y} rx={14*carScale} ry={6*carScale} fill={d.color} opacity={isActive?0.45:isHover?0.3:0.18} transform={`rotate(${p.angle},${p.x},${p.y})`} style={{filter:"blur(6px)"}}/>}
@@ -812,7 +812,7 @@ export default function F1App(){
 
             // ── PANEL LAYOUT (right sidebar) ──
             if(layout==="panel") return (
-              <aside style={{width:240,flexShrink:0,borderLeft:"1px solid #1a1c28",
+              <aside style={{width:260,flexShrink:0,borderLeft:"1px solid #1a1c28",
                 background:"#090910",display:"flex",flexDirection:"column",overflow:"hidden"}}>
                 <div style={{padding:"7px 12px",borderBottom:"1px solid #1a1c28",
                   fontSize:7,letterSpacing:4,color:"#555878",fontWeight:700}}>RACE ORDER</div>
@@ -865,9 +865,9 @@ export default function F1App(){
                               <div style={{display:"flex",gap:8}}>
                                 {sectorData.map((sc,si)=>(
                                   <div key={si} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:3}}>
-                                    <div style={{width:44,height:5,borderRadius:2,background:sc.color,
+                                    <div style={{width:48,height:5,borderRadius:2,background:sc.color,
                                       boxShadow:`0 0 5px ${sc.color}80`}}/>
-                                    <span style={{fontSize:8,color:sc.color,fontFamily:"'DM Mono',monospace",
+                                    <span style={{fontSize:10,color:sc.color,fontFamily:"'DM Mono',monospace",
                                       fontWeight:600,opacity:0.95}}>{sc.t}</span>
                                   </div>
                                 ))}
@@ -918,7 +918,7 @@ export default function F1App(){
                       onMouseEnter={()=>!isDNF&&setHover(d.code)}
                       onMouseLeave={()=>setHover(null)}
                       style={{
-                        minWidth:104, flexShrink:0,
+                        minWidth:118, flexShrink:0,
                         padding:"8px 10px",
                         cursor:isDNF?"default":"pointer",
                         background:isActive?`${d.color}15`:isHover?"#13131f":"transparent",
@@ -950,9 +950,9 @@ export default function F1App(){
                         <div style={{display:"flex",gap:5,marginTop:3}}>
                           {sectorData.map((sc,si)=>(
                             <div key={si} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
-                              <div style={{width:24,height:4,borderRadius:1.5,background:sc.color,
+                              <div style={{width:28,height:4,borderRadius:1.5,background:sc.color,
                                 boxShadow:`0 0 4px ${sc.color}80`}}/>
-                              <span style={{fontSize:7,color:sc.color,fontFamily:"'DM Mono',monospace",
+                              <span style={{fontSize:10,color:sc.color,fontFamily:"'DM Mono',monospace",
                                 fontWeight:600,opacity:0.95}}>{sc.t}</span>
                             </div>
                           ))}

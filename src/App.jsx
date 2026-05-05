@@ -564,9 +564,21 @@ export default function F1App(){
               <path d={trackD} fill="none" stroke="#1e2030" strokeWidth={18} strokeLinecap="round" strokeLinejoin="round"/>
               <path d={trackD} fill="none" stroke="#252838" strokeWidth={14} strokeLinecap="round" strokeLinejoin="round"/>
               {/* DRS zones only */}
-              <path d={drs1D} fill="none" stroke="#facc15" strokeWidth={2.5} strokeOpacity={.45} strokeLinecap="round"/>
-              <path d={drs2D} fill="none" stroke="#facc15" strokeWidth={2.5} strokeOpacity={.45} strokeLinecap="round"/>
-              {/* Centre dash */}
+              {/* DRS detection point markers */}
+{wp[drs1[0]]&&(
+  <g>
+    <circle cx={wp[drs1[0]][0]} cy={wp[drs1[0]][1]} r={4} fill="#facc15" opacity={0.7}/>
+    <text x={wp[drs1[0]][0]+6} y={wp[drs1[0]][1]+2} fill="#facc1590" fontSize={4.5}
+      fontFamily="'Orbitron',sans-serif" letterSpacing={1}>DRS</text>
+  </g>
+)}
+{wp[drs2[0]]&&(
+  <g>
+    <circle cx={wp[drs2[0]][0]} cy={wp[drs2[0]][1]} r={4} fill="#facc15" opacity={0.7}/>
+    <text x={wp[drs2[0]][0]+6} y={wp[drs2[0]][1]+2} fill="#facc1590" fontSize={4.5}
+      fontFamily="'Orbitron',sans-serif" letterSpacing={1}>DRS</text>
+  </g>
+)}
               <path d={trackD} fill="none" stroke="#343748" strokeWidth={1} strokeDasharray="5 10" strokeOpacity={.5}/>
               {tilt>5&&<rect x={vbX} y={vbY} width={vbW} height={vbH} fill="url(#depthGrad)" style={{pointerEvents:"none"}}/>}
               <path ref={pathRef} d={trackD} fill="none" stroke="none"/>

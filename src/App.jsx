@@ -552,34 +552,42 @@ export default function F1App(){
             <svg viewBox={viewBox} style={{width:"100%",maxWidth:"min(92vw,900px)",maxHeight:"calc(100vh - 130px)",position:"relative",zIndex:1,transform:`rotateX(${tilt}deg)`,transformOrigin:"center 60%",transition:"transform 0.35s cubic-bezier(.4,0,.2,1)"}}>
               <defs>
                 <filter id="trailBlur"><feGaussianBlur stdDeviation="2"/></filter>
+                <filter id="trackGlow" x="-20%" y="-20%" width="140%" height="140%">
+                  <feGaussianBlur stdDeviation="12" result="b"/>
+                  <feMerge><feMergeNode in="b"/></feMerge>
+                </filter>
                 <linearGradient id="depthGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#0d0d12" stopOpacity={tilt>5?0.5:0}/>
-                  <stop offset="60%" stopColor="#0d0d12" stopOpacity="0"/>
+                  <stop offset="0%" stopColor="#0d0d12" stopOpacity={tilt>5?0.6:0}/>
+                  <stop offset="55%" stopColor="#0d0d12" stopOpacity="0"/>
                 </linearGradient>
               </defs>
+              {/* Teal ambient glow behind track */}
+              <path d={trackD} fill="none" stroke="#00a8a0" strokeWidth={32} strokeOpacity={0.07} style={{filter:"url(#trackGlow)"}}/>
               {/* Pit lane */}
               {pitLaneD&&<><path d={pitLaneD} fill="none" stroke="#323540" strokeWidth={14} strokeLinecap="round"/><path d={pitLaneD} fill="none" stroke="#3c3f50" strokeWidth={10} strokeLinecap="round"/><path d={pitLaneD} fill="none" stroke="#464958" strokeWidth={1.5} strokeDasharray="4 6" strokeOpacity={0.6} strokeLinecap="round"/></>}
-              {/* Track — NO sector colour stripes */}
-              <path d={trackD} fill="none" stroke="#2a2d3a" strokeWidth={22} strokeLinecap="round" strokeLinejoin="round"/>
-              <path d={trackD} fill="none" stroke="#1e2030" strokeWidth={18} strokeLinecap="round" strokeLinejoin="round"/>
-              <path d={trackD} fill="none" stroke="#252838" strokeWidth={14} strokeLinecap="round" strokeLinejoin="round"/>
-              {/* DRS zones only */}
-              {/* DRS detection point markers */}
-{wp[drs1[0]]&&(
-  <g>
-    <circle cx={wp[drs1[0]][0]} cy={wp[drs1[0]][1]} r={4} fill="#facc15" opacity={0.7}/>
-    <text x={wp[drs1[0]][0]+6} y={wp[drs1[0]][1]+2} fill="#facc1590" fontSize={4.5}
-      fontFamily="'Orbitron',sans-serif" letterSpacing={1}>DRS</text>
-  </g>
-)}
-{wp[drs2[0]]&&(
-  <g>
-    <circle cx={wp[drs2[0]][0]} cy={wp[drs2[0]][1]} r={4} fill="#facc15" opacity={0.7}/>
-    <text x={wp[drs2[0]][0]+6} y={wp[drs2[0]][1]+2} fill="#facc1590" fontSize={4.5}
-      fontFamily="'Orbitron',sans-serif" letterSpacing={1}>DRS</text>
-  </g>
-)}
-              <path d={trackD} fill="none" stroke="#343748" strokeWidth={1} strokeDasharray="5 10" strokeOpacity={.5}/>
+              {/* Track — teal surface, F1 TV aesthetic */}
+              {/* Outer kerb edge */}
+              <path d={trackD} fill="none" stroke="#003a3a" strokeWidth={24} strokeLinecap="round" strokeLinejoin="round"/>
+              {/* White track boundary line */}
+              <path d={trackD} fill="none" stroke="#c8d8d8" strokeWidth={20} strokeLinecap="round" strokeLinejoin="round" strokeOpacity={0.18}/>
+              {/* Teal asphalt surface */}
+              <path d={trackD} fill="none" stroke="#005f5f" strokeWidth={19} strokeLinecap="round" strokeLinejoin="round"/>
+              <path d={trackD} fill="none" stroke="#00a8a0" strokeWidth={15} strokeLinecap="round" strokeLinejoin="round"/>
+              {/* Inner surface highlight */}
+              <path d={trackD} fill="none" stroke="#00c8c0" strokeWidth={8} strokeLinecap="round" strokeLinejoin="round" strokeOpacity={0.35}/>
+              {/* Centre dash */}
+              <path d={trackD} fill="none" stroke="#00e8e0" strokeWidth={0.8} strokeDasharray="5 10" strokeOpacity={.25}/>
+              {/* DRS detection point markers — dot only at zone start */}
+              {wp[drs1[0]]&&(<g>
+                <circle cx={wp[drs1[0]][0]} cy={wp[drs1[0]][1]} r={5} fill="#facc15" opacity={0.85}/>
+                <circle cx={wp[drs1[0]][0]} cy={wp[drs1[0]][1]} r={8} fill="#facc15" opacity={0.15}/>
+                <text x={wp[drs1[0]][0]+9} y={wp[drs1[0]][1]+2} fill="#facc1599" fontSize={4.5} fontFamily="'Orbitron',sans-serif" letterSpacing={1}>DRS</text>
+              </g>)}
+              {wp[drs2[0]]&&(<g>
+                <circle cx={wp[drs2[0]][0]} cy={wp[drs2[0]][1]} r={5} fill="#facc15" opacity={0.85}/>
+                <circle cx={wp[drs2[0]][0]} cy={wp[drs2[0]][1]} r={8} fill="#facc15" opacity={0.15}/>
+                <text x={wp[drs2[0]][0]+9} y={wp[drs2[0]][1]+2} fill="#facc1599" fontSize={4.5} fontFamily="'Orbitron',sans-serif" letterSpacing={1}>DRS</text>
+              </g>)}
               {tilt>5&&<rect x={vbX} y={vbY} width={vbW} height={vbH} fill="url(#depthGrad)" style={{pointerEvents:"none"}}/>}
               <path ref={pathRef} d={trackD} fill="none" stroke="none"/>
               <path ref={pitPathRef} d={pitLaneD||""} fill="none" stroke="none"/>
@@ -587,7 +595,7 @@ export default function F1App(){
               <line x1={sfX-2} y1={sfY-14} x2={sfX-2} y2={sfY+10} stroke="#ffffff" strokeWidth={2} strokeOpacity={.6}/>
               <text x={sfX+4} y={sfY+3} fill="#7a7d96" fontSize={5.5} fontFamily="'DM Mono',monospace">S/F</text>
               {/* Corner labels */}
-              {cornerLabels.map(([name,x,y,anchor])=>(<text key={name} x={x} y={y} fill="#3a3e58" fontSize={4.8} textAnchor={anchor} fontFamily="'Orbitron',sans-serif" letterSpacing={.7}>{name}</text>))}
+              {cornerLabels.map(([name,x,y,anchor])=>(<text key={name} x={x} y={y} fill="#006060" fontSize={5} textAnchor={anchor} fontFamily="'Orbitron',sans-serif" letterSpacing={.8}>{name}</text>))}
               {/* Battle lines */}
               {standings.map((d,i)=>{
                 if(i===0)return null;

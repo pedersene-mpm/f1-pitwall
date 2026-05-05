@@ -562,21 +562,19 @@ export default function F1App(){
                 </linearGradient>
               </defs>
               {/* Teal ambient glow behind track */}
-              <path d={trackD} fill="none" stroke="#00a8a0" strokeWidth={32} strokeOpacity={0.07} style={{filter:"url(#trackGlow)"}}/>
+              <path d={trackD} fill="none" stroke="#004040" strokeWidth={32} strokeOpacity={0.04} style={{filter:"url(#trackGlow)"}}/>
               {/* Pit lane */}
               {pitLaneD&&<><path d={pitLaneD} fill="none" stroke="#323540" strokeWidth={14} strokeLinecap="round"/><path d={pitLaneD} fill="none" stroke="#3c3f50" strokeWidth={10} strokeLinecap="round"/><path d={pitLaneD} fill="none" stroke="#464958" strokeWidth={1.5} strokeDasharray="4 6" strokeOpacity={0.6} strokeLinecap="round"/></>}
-              {/* Track — teal surface, F1 TV aesthetic */}
+              {/* Track — dark teal, subtle F1 TV aesthetic */}
               {/* Outer kerb edge */}
-              <path d={trackD} fill="none" stroke="#003a3a" strokeWidth={24} strokeLinecap="round" strokeLinejoin="round"/>
-              {/* White track boundary line */}
-              <path d={trackD} fill="none" stroke="#c8d8d8" strokeWidth={20} strokeLinecap="round" strokeLinejoin="round" strokeOpacity={0.18}/>
+              <path d={trackD} fill="none" stroke="#001a1a" strokeWidth={24} strokeLinecap="round" strokeLinejoin="round"/>
               {/* Teal asphalt surface */}
-              <path d={trackD} fill="none" stroke="#005f5f" strokeWidth={19} strokeLinecap="round" strokeLinejoin="round"/>
-              <path d={trackD} fill="none" stroke="#00a8a0" strokeWidth={15} strokeLinecap="round" strokeLinejoin="round"/>
-              {/* Inner surface highlight */}
-              <path d={trackD} fill="none" stroke="#00c8c0" strokeWidth={8} strokeLinecap="round" strokeLinejoin="round" strokeOpacity={0.35}/>
-              {/* Centre dash */}
-              <path d={trackD} fill="none" stroke="#00e8e0" strokeWidth={0.8} strokeDasharray="5 10" strokeOpacity={.25}/>
+              <path d={trackD} fill="none" stroke="#002828" strokeWidth={20} strokeLinecap="round" strokeLinejoin="round"/>
+              <path d={trackD} fill="none" stroke="#003838" strokeWidth={16} strokeLinecap="round" strokeLinejoin="round"/>
+              {/* Subtle inner teal shine */}
+              <path d={trackD} fill="none" stroke="#005050" strokeWidth={10} strokeLinecap="round" strokeLinejoin="round" strokeOpacity={0.7}/>
+              {/* Very faint centre dash */}
+              <path d={trackD} fill="none" stroke="#006868" strokeWidth={0.8} strokeDasharray="5 10" strokeOpacity={.2}/>
               {/* DRS detection point markers — dot only at zone start */}
               {wp[drs1[0]]&&(<g>
                 <circle cx={wp[drs1[0]][0]} cy={wp[drs1[0]][1]} r={5} fill="#facc15" opacity={0.85}/>
@@ -737,9 +735,8 @@ export default function F1App(){
                     {[
                       {l:"POSITION",   v:`P${selRank}`},
                       {l:"LAP",        v:`${currentLap} / ${totalLaps}`},
-                      {l:"SPEED",      v:`${currentSpd} km/h`},
-                      {l:"BEST LAP",   v:bestLapFmt,  special:"purple"},
-                      aheadDriver?{l:`GAP TO ${aheadDriver.code}`,v:aheadGapNow!=null?`${aheadGapNow.toFixed(2)}s`:"—",special:aheadGapNow<1?"red":null}:null,
+                      {l:"BEST LAP",   v:bestLapFmt, special:"purple"},
+                      aheadDriver?{l:`GAP TO ${aheadDriver.code}`,v:aheadGapNow!=null?`${aheadGapNow.toFixed(2)}s`:"—",special:aheadGapNow!=null&&aheadGapNow<1?"red":null}:null,
                     ].filter(Boolean).map(({l,v,special})=>(
                       <div key={l} style={{padding:"6px 10px",background:"#0e0e18",borderRadius:5,border:`1px solid ${special==="purple"?"#a855f730":special==="red"?"#f8717130":"#1a1c28"}`}}>
                         <div style={{fontSize:5,color:special==="purple"?"#a855f7":special==="red"?"#f87171":"#555878",letterSpacing:2,marginBottom:3}}>{l}</div>
@@ -754,16 +751,69 @@ export default function F1App(){
 
                 {/* Charts */}
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
-                  <div style={{background:"#0e0e18",borderRadius:8,padding:16,border:"1px solid #1a1c28"}}>
-                    <div style={{fontSize:8,letterSpacing:3,color:"#555878",marginBottom:12}}>SPEED TRACE</div>
-                    {spdH.length>4?<Sparkline data={spdH} color={d.color} width={280} height={60} min={60} max={360}/>:<div style={{height:60,display:"flex",alignItems:"center",justifyContent:"center",color:"#44475e",fontSize:7,letterSpacing:2}}>PLAY RACE TO SEE TRACE</div>}
-                    <div style={{display:"flex",justifyContent:"space-between",marginTop:6}}>
-                      <span style={{fontSize:6,color:"#44475e",fontFamily:"'DM Mono',monospace"}}>60 km/h</span>
-                      <span style={{fontSize:6,color:d.color,fontFamily:"'DM Mono',monospace",fontWeight:600}}>{currentSpd} km/h now</span>
-                      <span style={{fontSize:6,color:"#44475e",fontFamily:"'DM Mono',monospace"}}>360 km/h</span>
-                    </div>
-                  </div>
 
+                  {/* Race position history — shows how driver moved through field */}
+                  {(()=>{
+                    // Build position-per-lap from standings history
+                    // We sample tl at ~each completed lap boundary
+                    const posHistory = [];
+                    for(let lap=1; lap<=currentLap; lap++){
+                      // Find a step near the end of this lap for this driver
+                      const targetProg = (lap - 0.05) / totalLaps;
+                      let closestStep = 0, closestDiff = Infinity;
+                      for(let s=0; s<tl.length; s+=10){
+                        const diff = Math.abs((tl[s]?.raw[d.code]||0) - targetProg * totalLaps);
+                        if(diff < closestDiff){ closestDiff=diff; closestStep=s; }
+                      }
+                      const fr = tl[closestStep]||{};
+                      const sorted = [...drivers].sort((a,b)=>(fr.raw[b.code]||0)-(fr.raw[a.code]||0));
+                      const pos = sorted.findIndex(x=>x.code===d.code)+1;
+                      if(pos>0) posHistory.push({lap, pos});
+                    }
+                    const n = posHistory.length;
+                    const W = 280, H = 70, PAD = 8;
+                    const maxPos = Math.max(drivers.length, ...posHistory.map(p=>p.pos));
+                    const toX = (lap) => PAD + ((lap-1)/(totalLaps-1))*(W-PAD*2);
+                    const toY = (pos) => PAD + ((pos-1)/(maxPos-1))*(H-PAD*2);
+                    const pts = posHistory.map(p=>`${toX(p.lap).toFixed(1)},${toY(p.pos).toFixed(1)}`).join(" ");
+                    const lastPt = posHistory[posHistory.length-1];
+                    return(
+                      <div style={{background:"#0e0e18",borderRadius:8,padding:16,border:"1px solid #1a1c28"}}>
+                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+                          <div style={{fontSize:8,letterSpacing:3,color:"#555878"}}>RACE POSITION</div>
+                          {lastPt&&<div style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:d.color,fontWeight:700}}>P{lastPt.pos}</div>}
+                        </div>
+                        {n>1?(
+                          <svg viewBox={`0 0 ${W} ${H}`} style={{width:"100%",height:H,display:"block"}}>
+                            {/* Grid lines for each position */}
+                            {[1,5,10,15,20].filter(p=>p<=maxPos).map(p=>(
+                              <g key={p}>
+                                <line x1={PAD} y1={toY(p)} x2={W-PAD} y2={toY(p)} stroke="#1a1c28" strokeWidth={0.5} strokeDasharray="2 4"/>
+                                <text x={PAD-2} y={toY(p)+2} fill="#44475e" fontSize={4} textAnchor="end" fontFamily="'DM Mono',monospace">P{p}</text>
+                              </g>
+                            ))}
+                            {/* P1 line highlighted */}
+                            <line x1={PAD} y1={toY(1)} x2={W-PAD} y2={toY(1)} stroke="#FFD700" strokeWidth={0.5} strokeOpacity={0.3}/>
+                            {/* Position trace — note Y is inverted (P1 = top) */}
+                            <polyline points={pts} fill="none" stroke={d.color} strokeWidth={2}
+                              strokeLinecap="round" strokeLinejoin="round"/>
+                            {/* Fill under line */}
+                            {posHistory.length>1&&<polygon
+                              points={`${toX(posHistory[0].lap)},${H-PAD} ${pts} ${toX(lastPt.lap)},${H-PAD}`}
+                              fill={d.color} opacity={0.06}/>}
+                            {/* Current position dot */}
+                            {lastPt&&<circle cx={toX(lastPt.lap)} cy={toY(lastPt.pos)} r={3} fill={d.color}/>}
+                          </svg>
+                        ):<div style={{height:H,display:"flex",alignItems:"center",justifyContent:"center",color:"#44475e",fontSize:7,letterSpacing:2}}>PLAY RACE TO SEE HISTORY</div>}
+                        <div style={{display:"flex",justifyContent:"space-between",marginTop:4}}>
+                          <span style={{fontSize:6,color:"#44475e",fontFamily:"'DM Mono',monospace"}}>LAP 1</span>
+                          <span style={{fontSize:6,color:"#44475e",fontFamily:"'DM Mono',monospace"}}>LAP {totalLaps}</span>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Gap to car ahead */}
                   <div style={{background:"#0e0e18",borderRadius:8,padding:16,border:"1px solid #1a1c28"}}>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
                       <div style={{fontSize:8,letterSpacing:3,color:"#555878"}}>GAP TO {aheadDriver?.code||"AHEAD"}</div>
@@ -772,7 +822,16 @@ export default function F1App(){
                     {gapHist[d.code]?.length>4
                       ?<Sparkline data={gapHist[d.code]} color={aheadDriver?.color||"#FFD700"} width={280} height={60} min={0} max={Math.max(5,...(gapHist[d.code]||[]))}/>
                       :<div style={{height:60,display:"flex",alignItems:"center",justifyContent:"center",color:"#44475e",fontSize:7,letterSpacing:2}}>{selRank===1?"RACE LEADER":"PLAY RACE TO SEE GAP"}</div>}
-                    {aheadGapNow!=null&&<div style={{marginTop:10,textAlign:"center",fontFamily:"'DM Mono',monospace",fontSize:22,color:aheadGapNow<0.5?"#f87171":aheadGapNow<1?"#FFD700":"#d0d2de",fontWeight:700}}>{aheadGapNow.toFixed(3)}s</div>}
+                    {aheadGapNow!=null&&(
+                      <div style={{marginTop:10,textAlign:"center"}}>
+                        <div style={{fontFamily:"'DM Mono',monospace",fontSize:22,color:aheadGapNow<0.5?"#f87171":aheadGapNow<1?"#FFD700":"#d0d2de",fontWeight:700}}>
+                          {aheadGapNow.toFixed(3)}s
+                        </div>
+                        <div style={{fontSize:6,color:"#44475e",letterSpacing:2,marginTop:3}}>
+                          {aheadGapNow<0.5?"IN ATTACK RANGE":aheadGapNow<1?"DRS RANGE":aheadGapNow<2?"CLOSE":"CLEAR"}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
 

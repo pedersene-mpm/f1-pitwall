@@ -142,6 +142,7 @@ track_export = {
     "svg_width": SVG_W, "svg_height": SVG_H,
     "points": track_points, "corners": corners_out,
     "rotation_deg": float(rot),
+    "pit_lane_points": [],   # filled after step 3
 }
 
 # ─── STEP 2: RACE DATA ────────────────────────────────────────────────────────
@@ -153,30 +154,51 @@ total_laps = int(race.total_laps) if race.total_laps else 60
 lap_time_s = lap_time_for(EVENT)
 print(f"      Total laps: {total_laps}  |  Avg lap: {lap_time_s}s")
 
+results_cols = ["Abbreviation","FullName","TeamName","TeamColor","Position"]
+if "Status" in race.results.columns:
+    results_cols.append("Status")
 results = (race.results
            .sort_values("Position")
            .head(MAX_DRIVERS)
-          )[["Abbreviation","FullName","TeamName","TeamColor","Position"]].copy()
+          )[results_cols].copy()
+
+def _is_dnf(status: str) -> bool:
+    """True when the status is not a classified finish (Finished or +N Laps)."""
+    if not status or status in ("Finished",):
+        return False
+    if re.match(r'^\+\d+\s*Lap', status, re.IGNORECASE):
+        return False   # lapped but still classified
+    return True
 
 drivers_meta = []
 for _, row in results.iterrows():
     col = str(row["TeamColor"])
     if not col.startswith("#"): col = "#" + col
+    try:
+        status_val = str(row["Status"])
+    except (KeyError, TypeError):
+        status_val = "Finished"
     drivers_meta.append({
         "code":             row["Abbreviation"],
         "name":             str(row["FullName"]),
         "team":             str(row["TeamName"]),
         "color":            col,
         "finish_position":  int(row["Position"]) if pd.notna(row["Position"]) else None,
+        "status":           status_val,
+        "is_dnf":           _is_dnf(status_val),
+        "retired_at_step":  None,   # filled below
+        "pit_laps":         [],     # filled below
+        "pit_windows":      [],     # [[raw_in, raw_out], …] in lap units
     })
 
 print(f"      Drivers: {[d['code'] for d in drivers_meta]}")
 
-# ─── STEP 3: POSITION TIMELINE ───────────────────────────────────────────────
+# ─── STEP 3: POSITION TIMELINE + PIT WINDOWS ────────────────────────────────
 print("\n[3/3] Building position timeline…")
-TIMELINE_N = 2000
-tl         = np.linspace(0, 1, TIMELINE_N)
-positions  = {}
+TIMELINE_N   = 2000
+tl           = np.linspace(0, 1, TIMELINE_N)
+positions    = {}
+pit_lane_pts = []   # SVG coords of the pit lane path (filled from first pit lap found)
 
 for drv in drivers_meta:
     code = drv["code"]
@@ -198,7 +220,6 @@ for drv in drivers_meta:
                 for i in range(len(t_s)):
                     records.append((t_s[i], float(cum[i])))
             except Exception:
-                # Fallback: timing only
                 try:
                     st = lap["LapStartTime"]; lt = lap["LapTime"]
                     if pd.isna(st) or pd.isna(lt): continue
@@ -218,11 +239,77 @@ for drv in drivers_meta:
         cum_re  = np.interp(tl, t_norm, cum_arr)
         track_p = (cum_re * total_laps % 1 + 1) % 1
         positions[code] = track_p.round(4).tolist()
-        print(f"      {code}: {len(positions[code])} samples ✓")
+
+        # ── DNF retirement step ────────────────────────────────────────────
+        if drv["is_dnf"]:
+            raw_vals = cum_re * total_laps
+            deltas   = np.diff(raw_vals)
+            moving   = np.where(deltas > 0.002)[0]
+            drv["retired_at_step"] = int(moving[-1]) + 1 if len(moving) else 0
+            print(f"      {code}: DNF at step {drv['retired_at_step']} "
+                  f"(lap ~{raw_vals[drv['retired_at_step']]:.1f})")
+
+        # ── Pit stops: lap numbers + raw-progress windows ──────────────────
+        pit_laps    = []
+        pit_windows = []
+        laps_list   = list(drv_laps.iterrows())
+        for idx, (_, lap) in enumerate(laps_list):
+            try:
+                pit_in = lap.get("PitInTime")
+                if pd.isna(pit_in): continue
+                ln = int(lap["LapNumber"])
+                pit_laps.append(ln)
+                pit_in_s = pit_in.total_seconds()
+
+                # PitOutTime may be on the same row or the next lap row
+                pit_out = lap.get("PitOutTime")
+                if pd.isna(pit_out) and idx + 1 < len(laps_list):
+                    pit_out = laps_list[idx + 1][1].get("PitOutTime")
+                # Fallback: estimate pit out as pit in + 35 s (typical stop + lane transit)
+                pit_out_s = pit_out.total_seconds() if pd.notna(pit_out) else pit_in_s + 35.0
+
+                raw_in  = float(np.interp(pit_in_s,  t_arr, cum_arr)) * total_laps
+                raw_out = float(np.interp(pit_out_s, t_arr, cum_arr)) * total_laps
+                if raw_out > raw_in:
+                    pit_windows.append([round(raw_in, 3), round(raw_out, 3)])
+
+                # ── Extract pit lane GPS path (only need one good example) ──
+                if not pit_lane_pts:
+                    try:
+                        tel2 = lap.get_pos_data()
+                        if tel2 is not None and len(tel2) >= 20:
+                            ts2  = tel2["SessionTime"].dt.total_seconds().values
+                            mask = (ts2 >= pit_in_s - 4) & (ts2 <= pit_out_s + 4)
+                            if mask.sum() >= 10:
+                                xp = tel2["X"].values[mask].astype(float)
+                                yp = tel2["Y"].values[mask].astype(float)
+                                xrp, yrp = rotate(xp, yp, rot)
+                                step_s = max(1, len(xrp) // 80)
+                                pts = []
+                                for i in range(0, len(xrp), step_s):
+                                    sx, sy = pt_to_svg(xrp[i], yrp[i], tf)
+                                    pts.append([sx, sy])
+                                if len(pts) >= 6:
+                                    pit_lane_pts = pts
+                                    print(f"      Pit lane: {len(pts)} pts from {code} L{ln}")
+                    except Exception as pe:
+                        print(f"      Pit lane extract error: {pe}")
+            except Exception:
+                pass
+
+        drv["pit_laps"]    = pit_laps
+        drv["pit_windows"] = pit_windows
+        print(f"      {code}: {len(positions[code])} samples ✓  "
+              f"pits={pit_laps or '—'}  windows={pit_windows or '—'}")
     except Exception as e:
         print(f"      {code}: skipped — {e}")
 
 print(f"\n      {len(positions)}/{len(drivers_meta)} drivers with data")
+if pit_lane_pts:
+    print(f"      Pit lane path: {len(pit_lane_pts)} points")
+    track_export["pit_lane_points"] = pit_lane_pts
+else:
+    print("      No pit lane path found (no pit stops with full telemetry)")
 
 # ─── EXPORT ──────────────────────────────────────────────────────────────────
 race_export = {

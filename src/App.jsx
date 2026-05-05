@@ -30,31 +30,39 @@ function lerpPos(a, b, t, maxDelta = 0.04) {
 // ─── STATIC DRIVER INFO ───────────────────────────────────────────────────────
 // Nationality, DOB, birthplace for the full 2024/2026 grid
 const DRIVER_INFO = {
-  NOR: { nationality:"🇬🇧 British",   dob:"1999-11-13", birthplace:"Glastonbury, England",  bio:"Youngest McLaren race winner. Known for exceptional wet-weather pace." },
-  HAM: { nationality:"🇬🇧 British",   dob:"1985-01-07", birthplace:"Stevenage, England",    bio:"7× World Champion. Most race wins in F1 history." },
-  LEC: { nationality:"🇲🇨 Monégasque",dob:"1997-10-16", birthplace:"Monte Carlo, Monaco",   bio:"Ferrari lead driver. Exceptional qualifier, multiple pole records." },
-  VER: { nationality:"🇳🇱 Dutch",     dob:"1997-09-30", birthplace:"Hasselt, Belgium",      bio:"4× World Champion. Dominant from 2021–2024 with Red Bull." },
-  PIA: { nationality:"🇦🇺 Australian", dob:"2001-04-06", birthplace:"Melbourne, Australia",  bio:"Rising McLaren talent. 2021 F2 Champion." },
-  RUS: { nationality:"🇬🇧 British",   dob:"1998-02-15", birthplace:"King's Lynn, England",  bio:"2018 F2 Champion. Known for extracting maximum from any car." },
-  ALO: { nationality:"🇪🇸 Spanish",   dob:"1981-07-29", birthplace:"Oviedo, Spain",         bio:"2× World Champion. One of the most experienced drivers in history." },
-  SAI: { nationality:"🇪🇸 Spanish",   dob:"1994-09-01", birthplace:"Madrid, Spain",         bio:"Son of WRC champion Carlos Sainz Sr. Consistent frontrunner." },
-  PER: { nationality:"🇲🇽 Mexican",   dob:"1990-01-26", birthplace:"Guadalajara, Mexico",   bio:"Most successful Mexican driver in F1 history." },
-  GAS: { nationality:"🇫🇷 French",    dob:"1996-02-07", birthplace:"Rouen, France",         bio:"Le Mans class winner alongside his F1 career." },
-  OCO: { nationality:"🇫🇷 French",    dob:"1996-09-17", birthplace:"Nice, France",          bio:"2019 F2 Champion. Scored maiden win in Bahrain 2021." },
-  STR: { nationality:"🇨🇦 Canadian",  dob:"1998-10-25", birthplace:"Montréal, Canada",      bio:"Youngest points scorer at the time of his debut in 2017." },
-  HUL: { nationality:"🇩🇪 German",    dob:"1987-08-19", birthplace:"Emmerich, Germany",     bio:"186 F1 starts without a win — one of the fastest 'never won' drivers." },
-  MAG: { nationality:"🇩🇰 Danish",    dob:"1992-10-05", birthplace:"Roskilde, Denmark",     bio:"Son of 2000 Le Mans winner Jan Magnussen." },
-  TSU: { nationality:"🇯🇵 Japanese",  dob:"2000-05-11", birthplace:"Sagamihara, Japan",     bio:"2019 Formula 3 Asian Champion." },
-  ALB: { nationality:"🇹🇭 Thai",      dob:"1996-03-23", birthplace:"London, England",       bio:"Dual Thai-British nationality. BRDC 'Rising Star' award winner." },
-  BOT: { nationality:"🇫🇮 Finnish",   dob:"1989-08-28", birthplace:"Nastola, Finland",      bio:"10 F1 race wins, all with Mercedes." },
-  ZHO: { nationality:"🇨🇳 Chinese",   dob:"1999-05-30", birthplace:"Shanghai, China",       bio:"First Chinese driver to score points in F1." },
-  SAR: { nationality:"🇺🇸 American",  dob:"2000-07-02", birthplace:"Fort Lauderdale, USA",  bio:"First full-time American F1 driver since 2015." },
-  LAW: { nationality:"🇳🇿 New Zealand",dob:"2002-02-11", birthplace:"Hastings, New Zealand", bio:"2023 Formula 2 runner-up." },
-  BEA: { nationality:"🇦🇺 Australian", dob:"2004-05-08", birthplace:"Adelaide, Australia",  bio:"Youngest Haas driver. 2023 Formula 3 Champion." },
-  DOO: { nationality:"🇦🇺 Australian", dob:"2003-01-31", birthplace:"Brisbane, Australia",  bio:"Son of MotoGP legend Mick Doohan." },
-  ANT: { nationality:"🇧🇷 Brazilian", dob:"2004-12-31", birthplace:"São Paulo, Brazil",     bio:"First Brazilian F1 driver since 2017. Joined Alpine in 2025." },
-  HAD: { nationality:"🇺🇸 American",  dob:"2004-03-28", birthplace:"Albuquerque, USA",      bio:"IndyCar graduate. Second American on the 2026 grid." },
-  BOR: { nationality:"🇫🇷 French",    dob:"2004-05-25", birthplace:"Lyon, France",          bio:"2023 Formula 3 Champion." },
+  // ── Red Bull Racing ───────────────────────────────────────────────────────
+  VER: { nationality:"🇳🇱 Dutch",      dob:"1997-09-30", birthplace:"Hasselt, Belgium",           bio:"4× World Champion (2021-2024). Most dominant back-to-back championship run in modern F1." },
+  HAD: { nationality:"🇫🇷 French",     dob:"2004-09-28", birthplace:"Paris, France",              bio:"Isack Hadjar. French-Algerian. 2024 F2 runner-up. Joined Red Bull for 2026." },
+  // ── Ferrari ──────────────────────────────────────────────────────────────
+  LEC: { nationality:"🇲🇨 Monégasque", dob:"1997-10-16", birthplace:"Monte Carlo, Monaco",        bio:"Ferrari lead driver since 2019. Multiple pole records. First Monaco win in 2024." },
+  HAM: { nationality:"🇬🇧 British",    dob:"1985-01-07", birthplace:"Stevenage, England",         bio:"7× World Champion. Record 103 F1 wins. Moved to Ferrari for 2025 to chase an eighth title." },
+  // ── McLaren ──────────────────────────────────────────────────────────────
+  NOR: { nationality:"🇬🇧 British",    dob:"1999-11-13", birthplace:"Glastonbury, England",       bio:"2024 World Champion. Known for exceptional wet-weather pace and aggressive overtaking." },
+  PIA: { nationality:"🇦🇺 Australian", dob:"2001-04-06", birthplace:"Melbourne, Australia",       bio:"2021 F2 Champion. Joined McLaren in 2023, scored maiden win at Budapest 2024." },
+  // ── Mercedes ─────────────────────────────────────────────────────────────
+  RUS: { nationality:"🇬🇧 British",    dob:"1998-02-15", birthplace:"King's Lynn, England",       bio:"2018 F2 Champion. Known for extracting maximum from any car. Maiden win in Brazil 2021." },
+  ANT: { nationality:"🇮🇹 Italian",    dob:"2006-08-12", birthplace:"Bologna, Italy",             bio:"Kimi Antonelli. Youngest Mercedes race starter. 2024 F2 Champion. Replaced Hamilton for 2025." },
+  // ── Aston Martin ─────────────────────────────────────────────────────────
+  ALO: { nationality:"🇪🇸 Spanish",    dob:"1981-07-29", birthplace:"Oviedo, Spain",              bio:"2× World Champion (2005, 2006). One of the most experienced and complete drivers in F1 history." },
+  STR: { nationality:"🇨🇦 Canadian",   dob:"1998-10-25", birthplace:"Montréal, Canada",           bio:"Youngest points scorer at debut in 2017. Son of Aston Martin owner Lawrence Stroll." },
+  // ── Audi (formerly Alfa Romeo / Kick Sauber) ─────────────────────────────
+  HUL: { nationality:"🇩🇪 German",     dob:"1987-08-19", birthplace:"Emmerich am Rhein, Germany", bio:"220+ F1 starts. One of the quickest drivers never to win. Leads Audi into F1 as a works team." },
+  BOR: { nationality:"🇧🇷 Brazilian",  dob:"2004-05-14", birthplace:"São Paulo, Brazil",          bio:"Gabriel Bortoleto. 2024 F2 Champion. First Brazilian F1 driver in years. Audi's second seat." },
+  // ── Cadillac ─────────────────────────────────────────────────────────────
+  PER: { nationality:"🇲🇽 Mexican",    dob:"1990-01-26", birthplace:"Guadalajara, Mexico",        bio:"Most successful Mexican driver in F1 history. 6 race wins with Red Bull. Joined Cadillac for 2026." },
+  BOT: { nationality:"🇫🇮 Finnish",    dob:"1989-08-28", birthplace:"Nastola, Finland",           bio:"10 F1 race wins, all with Mercedes. Moved to Cadillac for 2026 as an experienced anchor." },
+  // ── Williams ─────────────────────────────────────────────────────────────
+  SAI: { nationality:"🇪🇸 Spanish",    dob:"1994-09-01", birthplace:"Madrid, Spain",              bio:"Son of WRC champion Carlos Sainz Sr. Won 2024 Australian GP. Moved to Williams for 2025." },
+  ALB: { nationality:"🇹🇭 Thai",       dob:"1996-03-23", birthplace:"London, England",            bio:"Dual Thai-British nationality. BRDC Rising Star. Scored maiden podium at Monza 2023." },
+  // ── Alpine ───────────────────────────────────────────────────────────────
+  GAS: { nationality:"🇫🇷 French",     dob:"1996-02-07", birthplace:"Rouen, France",              bio:"Le Mans 24h class winner. Scored first F1 win at Bahrain 2020 with AlphaTauri." },
+  COL: { nationality:"🇦🇷 Argentine",  dob:"2003-05-27", birthplace:"Villa de Merlo, Argentina",  bio:"Franco Colapinto. Impressed on Williams debut mid-2024 replacing Sargeant. Joined Alpine for 2026." },
+  // ── Haas ─────────────────────────────────────────────────────────────────
+  OCO: { nationality:"🇫🇷 French",     dob:"1996-09-17", birthplace:"Nice, France",               bio:"2019 F2 Champion. Scored maiden F1 win at Bahrain 2021. Moved to Haas for 2025." },
+  BEA: { nationality:"🇬🇧 British",    dob:"2004-05-08", birthplace:"London, England",            bio:"Oliver Bearman. Subbed for Sainz at Ferrari (Saudi 2024) scoring points on debut aged 18." },
+  // ── Racing Bulls (VCARB) ─────────────────────────────────────────────────
+  LAW: { nationality:"🇳🇿 New Zealand",dob:"2002-02-11", birthplace:"Hastings, New Zealand",      bio:"2023 Formula 2 Champion. Stepped up to Racing Bulls for 2026 after impressing at Red Bull." },
+  LIN: { nationality:"🇸🇪 Swedish",    dob:"2007-06-04", birthplace:"Gothenburg, Sweden",         bio:"Arvid Lindblad. Youngest F1 driver in history. 2025 F3 Champion. Racing Bulls debut 2026." },
 };
 
 function driverAge(dob) {
@@ -176,6 +184,76 @@ const SESSIONS = [
   { key:"monaco_2024_race",  flag:"🇲🇨", name:"Monaco GP",   year:2024, type:"Race", file:"/data/monaco_2024_race.json",  circuit:"Monaco"      },
   { key:"miami_2026_race",   flag:"🇺🇸", name:"Miami GP",    year:2026, type:"Race", file:"/data/miami_2026_race.json",   circuit:"Miami"       },
 ];
+
+// ─── CIRCUIT INFO DATABASE ────────────────────────────────────────────────────
+const CIRCUIT_INFO = {
+  Silverstone: {
+    name:          "Silverstone Circuit",
+    flag:          "🇬🇧",
+    location:      "Northamptonshire, England",
+    firstGP:       1950,
+    firstGPNote:   "Hosted the very first F1 World Championship race",
+    length_km:     5.891,
+    laps:          52,
+    turns:         18,
+    drs_zones:     2,
+    lap_record:    { time:"1:27.097", driver:"Max Verstappen", year:2020, team:"Red Bull Racing" },
+    last_winner:   { driver:"Lando Norris", year:2024, team:"McLaren" },
+    most_wins_driver: { name:"Lewis Hamilton", wins:8 },
+    most_wins_constructor: { name:"Ferrari", wins:17 },
+    race_distance_km: 306.1,
+    facts: [
+      "Home of the British Grand Prix since 1950 — the birthplace of Formula 1",
+      "Maggotts-Becketts-Chapel complex is one of the fastest sequences in F1 — flat out at 200+ mph",
+      "Copse corner was taken flat until 2021, when Verstappen and Hamilton had their infamous collision there",
+      "Former RAF airfield — the grid uses old runways as its long straights",
+    ],
+  },
+  Monaco: {
+    name:          "Circuit de Monaco",
+    flag:          "🇲🇨",
+    location:      "Monte Carlo, Monaco",
+    firstGP:       1950,
+    firstGPNote:   "One of only two circuits from the original 1950 calendar still on the schedule",
+    length_km:     3.337,
+    laps:          78,
+    turns:         19,
+    drs_zones:     1,
+    lap_record:    { time:"1:12.909", driver:"Lando Norris", year:2024, team:"McLaren" },
+    last_winner:   { driver:"Charles Leclerc", year:2024, team:"Ferrari" },
+    most_wins_driver: { name:"Ayrton Senna", wins:6 },
+    most_wins_constructor: { name:"McLaren", wins:15 },
+    race_distance_km: 260.3,
+    facts: [
+      "The slowest circuit on the calendar — average speed under 160 km/h",
+      "So narrow that overtaking is nearly impossible; qualifying position is critical",
+      "Ayrton Senna won here 6 times, often described as his spiritual home",
+      "The Swimming Pool complex and Tunnel are among the most iconic sections in motorsport",
+    ],
+  },
+  Miami: {
+    name:          "Miami International Autodrome",
+    flag:          "🇺🇸",
+    location:      "Miami Gardens, Florida, USA",
+    firstGP:       2022,
+    firstGPNote:   "Built around Hard Rock Stadium, home of the Miami Dolphins",
+    length_km:     5.412,
+    laps:          57,
+    turns:         19,
+    drs_zones:     3,
+    lap_record:    { time:"1:29.708", driver:"Max Verstappen", year:2023, team:"Red Bull Racing" },
+    last_winner:   { driver:"Lando Norris", year:2024, team:"McLaren" },
+    most_wins_driver: { name:"Max Verstappen", wins:2 },
+    most_wins_constructor: { name:"Red Bull Racing", wins:2 },
+    race_distance_km: 308.5,
+    facts: [
+      "One of three US Grands Prix on the 2024/25 calendar alongside Austin and Las Vegas",
+      "The fake marina around the circuit was a controversial but iconic design choice",
+      "Norris's 2024 win ended a Verstappen/Red Bull streak and kicked off McLaren's title challenge",
+      "Third fastest average speed of all circuits — long straights allow top speeds over 320 km/h",
+    ],
+  },
+};
 
 // ─── MOCK DATA ────────────────────────────────────────────────────────────────
 const MOCK_DRIVERS=[
@@ -521,7 +599,7 @@ export default function F1App(){
   const sfX=wp[0]?.[0]||300,sfY=wp[0]?.[1]||250;
   const[vbX,vbY,vbW,vbH]=viewBox.split(" ").map(Number);
   const lapLabel=(mult)=>{const s=Math.round(lapTimeS/mult);return s>=60?`${Math.floor(s/60)}m${s%60>0?String(s%60).padStart(2,"0")+"s":""}`:s+"s";};
-  const NAV=[{id:"sessions",label:"SESSIONS"},{id:"race",label:"RACE MAP"},{id:"driver",label:"DRIVER"}];
+  const NAV=[{id:"sessions",label:"SESSIONS"},{id:"race",label:"RACE MAP"},{id:"driver",label:"DRIVER"},{id:"circuit",label:"CIRCUIT"}];
   const modeColor={"SELECT":"#333860","DATA":"#4CAF50","LIVE":"#ff4444"}[dataMode]||"#333860";
   const modeBg  ={"SELECT":"#0e0e22","DATA":"#0e2a0e","LIVE":"#2a0a0a"}[dataMode]||"#0e0e22";
   const modeText={"SELECT":"◌ SELECT SESSION","DATA":"◉ DATA","LIVE":"◉ LIVE"}[dataMode]||"◌";
@@ -1043,9 +1121,128 @@ export default function F1App(){
             })()}
           </div>
         )}
+        {/* ─── CIRCUIT VIEW ───────────────────────────────────────────── */}
+        {view==="circuit"&&(()=>{
+          const circuitKey = dataset.sessionName?.includes("British")||dataset.sessionName?.includes("Silverstone") ? "Silverstone"
+            : dataset.sessionName?.includes("Monaco") ? "Monaco"
+            : dataset.sessionName?.includes("Miami") ? "Miami"
+            : null;
+          const ci = circuitKey ? CIRCUIT_INFO[circuitKey] : null;
+
+          if(!ci) return(
+            <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:12}}>
+              <div style={{fontSize:10,letterSpacing:4,color:"#252840"}}>NO CIRCUIT LOADED</div>
+              <div style={{fontSize:7,color:"#1a1d2e",letterSpacing:2}}>SELECT A SESSION FIRST</div>
+              <button onClick={()=>setView("sessions")} style={{marginTop:8,padding:"8px 20px",background:"transparent",border:"1px solid #1a1d2e",borderRadius:4,color:"#252840",fontSize:8,letterSpacing:2,cursor:"pointer",fontFamily:"'Orbitron',sans-serif"}}>← SESSIONS</button>
+            </div>
+          );
+
+          const StatBox=({label,value,sub,accent})=>(
+            <div style={{padding:"12px 16px",background:"#0e0e18",borderRadius:8,border:`1px solid ${accent?"#E1060030":"#1a1c28"}`,minWidth:0}}>
+              <div style={{fontSize:5.5,color:"#555878",letterSpacing:2,marginBottom:5}}>{label}</div>
+              <div style={{fontSize:15,color:accent?"#E10600":"#d0d2de",fontFamily:"'DM Mono',monospace",fontWeight:700,lineHeight:1}}>{value}</div>
+              {sub&&<div style={{fontSize:6.5,color:"#555878",marginTop:4,letterSpacing:1}}>{sub}</div>}
+            </div>
+          );
+
+          const RecordBox=({label,driver,team,time,year,color="#a855f7"})=>(
+            <div style={{padding:"12px 16px",background:"#0e0e18",borderRadius:8,border:`1px solid ${color}30`}}>
+              <div style={{fontSize:5.5,color:"#555878",letterSpacing:2,marginBottom:8}}>{label}</div>
+              <div style={{display:"flex",alignItems:"center",gap:10}}>
+                <div style={{width:3,height:32,background:color,borderRadius:2,boxShadow:`0 0 8px ${color}60`}}/>
+                <div>
+                  <div style={{fontSize:13,color:color,fontFamily:"'DM Mono',monospace",fontWeight:700}}>{time||driver}</div>
+                  <div style={{fontSize:8,color:"#9a9eb8",marginTop:3,letterSpacing:1}}>{driver}{year?` · ${year}`:""}</div>
+                  {team&&<div style={{fontSize:6.5,color:"#555878",marginTop:2}}>{team}</div>}
+                </div>
+              </div>
+            </div>
+          );
+
+          return(
+            <div style={{flex:1,overflowY:"auto",padding:24}}>
+              <div style={{maxWidth:720,margin:"0 auto",display:"flex",flexDirection:"column",gap:20}}>
+
+                {/* Header */}
+                <div style={{display:"flex",alignItems:"flex-start",gap:20,paddingBottom:16,borderBottom:"1px solid #1a1c28"}}>
+                  <div style={{fontSize:36}}>{ci.flag}</div>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:20,letterSpacing:2,color:"#d0d2de",fontWeight:700,lineHeight:1}}>{ci.name}</div>
+                    <div style={{fontSize:9,color:"#9a9eb8",letterSpacing:2,marginTop:6}}>{ci.location}</div>
+                    <div style={{fontSize:7,color:"#555878",letterSpacing:1,marginTop:4}}>{ci.firstGPNote}</div>
+                  </div>
+                  <div style={{textAlign:"right"}}>
+                    <div style={{fontSize:9,color:"#555878",letterSpacing:2}}>FIRST GP</div>
+                    <div style={{fontSize:22,color:"#E10600",fontFamily:"'DM Mono',monospace",fontWeight:700}}>{ci.firstGP}</div>
+                  </div>
+                </div>
+
+                {/* Key stats grid */}
+                <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
+                  <StatBox label="CIRCUIT LENGTH"  value={`${ci.length_km} km`}/>
+                  <StatBox label="RACE LAPS"       value={ci.laps}/>
+                  <StatBox label="CORNERS"         value={ci.turns}/>
+                  <StatBox label="DRS ZONES"       value={ci.drs_zones}/>
+                  <StatBox label="RACE DISTANCE"   value={`${ci.race_distance_km} km`}/>
+                  <StatBox label="FIRST GRAND PRIX" value={ci.firstGP}/>
+                </div>
+
+                {/* Records row */}
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+                  <RecordBox
+                    label="LAP RECORD"
+                    driver={ci.lap_record.driver}
+                    team={ci.lap_record.team}
+                    time={ci.lap_record.time}
+                    year={ci.lap_record.year}
+                    color="#a855f7"
+                  />
+                  <RecordBox
+                    label="LAST WINNER"
+                    driver={ci.last_winner.driver}
+                    team={ci.last_winner.team}
+                    time={null}
+                    year={ci.last_winner.year}
+                    color="#FFD700"
+                  />
+                  <RecordBox
+                    label="MOST WINS — DRIVER"
+                    driver={ci.most_wins_driver.name}
+                    time={`${ci.most_wins_driver.wins} wins`}
+                    color="#E10600"
+                  />
+                  <RecordBox
+                    label="MOST WINS — CONSTRUCTOR"
+                    driver={ci.most_wins_constructor.name}
+                    time={`${ci.most_wins_constructor.wins} wins`}
+                    color="#00C8BA"
+                  />
+                </div>
+
+                {/* Facts */}
+                <div style={{background:"#0e0e18",borderRadius:8,padding:20,border:"1px solid #1a1c28"}}>
+                  <div style={{fontSize:8,letterSpacing:3,color:"#555878",marginBottom:14}}>CIRCUIT NOTES</div>
+                  <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                    {ci.facts.map((fact,i)=>(
+                      <div key={i} style={{display:"flex",gap:12,alignItems:"flex-start"}}>
+                        <div style={{width:4,height:4,borderRadius:"50%",background:"#E10600",flexShrink:0,marginTop:5}}/>
+                        <div style={{fontSize:8,color:"#9a9eb8",lineHeight:1.7,letterSpacing:0.5}}>{fact}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Add more circuits note */}
+                <div style={{padding:14,borderRadius:6,background:"#090910",border:"1px solid #1a1c28",fontSize:7,color:"#333550",lineHeight:1.8,fontFamily:"'DM Mono',monospace"}}>
+                  Add more circuits: update CIRCUIT_INFO in App.jsx and add a matching key in SESSIONS.
+                </div>
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
-      {/* ── FOOTER ────────────────────────────────────────────────────── */}
+
       <footer style={{padding:"8px 20px",flexShrink:0,borderTop:"1px solid #1a1c28",background:"#0a0a0f",display:"flex",alignItems:"center",gap:12}}>
         <button onClick={doRestart} style={ICON_BTN}>↺</button>
         <button onClick={togglePlay} style={{width:36,height:36,borderRadius:"50%",background:"#E10600",border:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:13,flexShrink:0,boxShadow:playing?"0 0 18px #E1060070":"none",transition:"box-shadow .2s"}}>{playing?"⏸":"▶"}</button>

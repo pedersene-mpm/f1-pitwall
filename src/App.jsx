@@ -15,49 +15,83 @@ function catmullPath(pts, closed = true) {
   return closed?d+"Z":d;
 }
 function sectorPath(pts,from,to){return catmullPath(pts.slice(Math.max(0,from),Math.min(pts.length,to+1)),false);}
-function lerpPos(a,b,t){if(b==null)return a;let diff=b-a;if(diff<-0.5)diff+=1;if(diff>0.5)diff-=1;return((a+diff*t)%1+1)%1;}
 
-// ─── CAR SILHOUETTE ────────────────────────────────────────────────────────────
-function CarShape({color,scale=1,dimmed=false}){
+// Smooth lerp — clamps max movement per frame to prevent pit-stop teleporting
+function lerpPos(a, b, t, maxDelta = 0.04) {
+  if (b == null) return a;
+  let diff = b - a;
+  if (diff < -0.5) diff += 1;  // lap wrap
+  if (diff >  0.5) diff -= 1;
+  // Clamp — prevents large jumps at pit entry/exit
+  const clamped = Math.max(-maxDelta, Math.min(maxDelta, diff * t));
+  return ((a + clamped) % 1 + 1) % 1;
+}
+
+// ─── STATIC DRIVER INFO ───────────────────────────────────────────────────────
+// Nationality, DOB, birthplace for the full 2024/2026 grid
+const DRIVER_INFO = {
+  NOR: { nationality:"🇬🇧 British",   dob:"1999-11-13", birthplace:"Glastonbury, England",  bio:"Youngest McLaren race winner. Known for exceptional wet-weather pace." },
+  HAM: { nationality:"🇬🇧 British",   dob:"1985-01-07", birthplace:"Stevenage, England",    bio:"7× World Champion. Most race wins in F1 history." },
+  LEC: { nationality:"🇲🇨 Monégasque",dob:"1997-10-16", birthplace:"Monte Carlo, Monaco",   bio:"Ferrari lead driver. Exceptional qualifier, multiple pole records." },
+  VER: { nationality:"🇳🇱 Dutch",     dob:"1997-09-30", birthplace:"Hasselt, Belgium",      bio:"4× World Champion. Dominant from 2021–2024 with Red Bull." },
+  PIA: { nationality:"🇦🇺 Australian", dob:"2001-04-06", birthplace:"Melbourne, Australia",  bio:"Rising McLaren talent. 2021 F2 Champion." },
+  RUS: { nationality:"🇬🇧 British",   dob:"1998-02-15", birthplace:"King's Lynn, England",  bio:"2018 F2 Champion. Known for extracting maximum from any car." },
+  ALO: { nationality:"🇪🇸 Spanish",   dob:"1981-07-29", birthplace:"Oviedo, Spain",         bio:"2× World Champion. One of the most experienced drivers in history." },
+  SAI: { nationality:"🇪🇸 Spanish",   dob:"1994-09-01", birthplace:"Madrid, Spain",         bio:"Son of WRC champion Carlos Sainz Sr. Consistent frontrunner." },
+  PER: { nationality:"🇲🇽 Mexican",   dob:"1990-01-26", birthplace:"Guadalajara, Mexico",   bio:"Most successful Mexican driver in F1 history." },
+  GAS: { nationality:"🇫🇷 French",    dob:"1996-02-07", birthplace:"Rouen, France",         bio:"Le Mans class winner alongside his F1 career." },
+  OCO: { nationality:"🇫🇷 French",    dob:"1996-09-17", birthplace:"Nice, France",          bio:"2019 F2 Champion. Scored maiden win in Bahrain 2021." },
+  STR: { nationality:"🇨🇦 Canadian",  dob:"1998-10-25", birthplace:"Montréal, Canada",      bio:"Youngest points scorer at the time of his debut in 2017." },
+  HUL: { nationality:"🇩🇪 German",    dob:"1987-08-19", birthplace:"Emmerich, Germany",     bio:"186 F1 starts without a win — one of the fastest 'never won' drivers." },
+  MAG: { nationality:"🇩🇰 Danish",    dob:"1992-10-05", birthplace:"Roskilde, Denmark",     bio:"Son of 2000 Le Mans winner Jan Magnussen." },
+  TSU: { nationality:"🇯🇵 Japanese",  dob:"2000-05-11", birthplace:"Sagamihara, Japan",     bio:"2019 Formula 3 Asian Champion." },
+  ALB: { nationality:"🇹🇭 Thai",      dob:"1996-03-23", birthplace:"London, England",       bio:"Dual Thai-British nationality. BRDC 'Rising Star' award winner." },
+  BOT: { nationality:"🇫🇮 Finnish",   dob:"1989-08-28", birthplace:"Nastola, Finland",      bio:"10 F1 race wins, all with Mercedes." },
+  ZHO: { nationality:"🇨🇳 Chinese",   dob:"1999-05-30", birthplace:"Shanghai, China",       bio:"First Chinese driver to score points in F1." },
+  SAR: { nationality:"🇺🇸 American",  dob:"2000-07-02", birthplace:"Fort Lauderdale, USA",  bio:"First full-time American F1 driver since 2015." },
+  LAW: { nationality:"🇳🇿 New Zealand",dob:"2002-02-11", birthplace:"Hastings, New Zealand", bio:"2023 Formula 2 runner-up." },
+  BEA: { nationality:"🇦🇺 Australian", dob:"2004-05-08", birthplace:"Adelaide, Australia",  bio:"Youngest Haas driver. 2023 Formula 3 Champion." },
+  DOO: { nationality:"🇦🇺 Australian", dob:"2003-01-31", birthplace:"Brisbane, Australia",  bio:"Son of MotoGP legend Mick Doohan." },
+  ANT: { nationality:"🇧🇷 Brazilian", dob:"2004-12-31", birthplace:"São Paulo, Brazil",     bio:"First Brazilian F1 driver since 2017. Joined Alpine in 2025." },
+  HAD: { nationality:"🇺🇸 American",  dob:"2004-03-28", birthplace:"Albuquerque, USA",      bio:"IndyCar graduate. Second American on the 2026 grid." },
+  BOR: { nationality:"🇫🇷 French",    dob:"2004-05-25", birthplace:"Lyon, France",          bio:"2023 Formula 3 Champion." },
+};
+
+function driverAge(dob) {
+  if (!dob) return "—";
+  const birth = new Date(dob);
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const m = today.getMonth() - birth.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+  return age;
+}
+
+// ─── CAR SILHOUETTE (Claude Code's improved version) ──────────────────────────
+function CarShape({color, scale=1, dimmed=false}) {
   const s=scale, o=dimmed?0.35:1;
-  return(<g transform={`scale(${s})`} opacity={o}>
-    {/* rear wing */}
+  return (<g transform={`scale(${s})`} opacity={o}>
     <rect x={-12.5} y={-6.2} width={2.3} height={12.4} rx={0.7} fill={color} opacity={0.92}/>
     <rect x={-12.3} y={-6.9} width={3.0} height={1.1} rx={0.3} fill={color} opacity={0.7}/>
-    <rect x={-12.3} y={5.8} width={3.0} height={1.1} rx={0.3} fill={color} opacity={0.7}/>
-    {/* rear diffuser */}
+    <rect x={-12.3} y={5.8}  width={3.0} height={1.1} rx={0.3} fill={color} opacity={0.7}/>
     <path d="M-8,-1.5 L-12.5,-2.8 L-12.5,2.8 L-8,1.5Z" fill={color} opacity={0.5}/>
-    {/* rear tyres */}
     <ellipse cx={-6.5} cy={-4.3} rx={2.2} ry={1.4} fill="#060810" stroke={color} strokeWidth={0.7} opacity={0.95}/>
-    <ellipse cx={-6.5} cy={4.3} rx={2.2} ry={1.4} fill="#060810" stroke={color} strokeWidth={0.7} opacity={0.95}/>
-    {/* sidepods */}
+    <ellipse cx={-6.5} cy={4.3}  rx={2.2} ry={1.4} fill="#060810" stroke={color} strokeWidth={0.7} opacity={0.95}/>
     <path d="M-7,-3 L3,-4.5 L3,-5.2 L-8,-4Z" fill={color} opacity={0.8}/>
-    <path d="M-7,3 L3,4.5 L3,5.2 L-8,4Z" fill={color} opacity={0.8}/>
-    {/* floor edges */}
-    <path d="M-9,-4.2 L1,-5 L1,-4.6 L-9,-3.8Z" fill={color} opacity={0.38}/>
-    <path d="M-9,4.2 L1,5 L1,4.6 L-9,3.8Z" fill={color} opacity={0.38}/>
-    {/* main body */}
+    <path d="M-7,3  L3,4.5  L3,5.2  L-8,4Z"  fill={color} opacity={0.8}/>
     <path d="M-8,-2 C-3,-3 3,-3.5 5.5,-2.5 L8.5,0 L5.5,2.5 C3,3.5 -3,3 -8,2Z" fill={color}/>
-    {/* center spine highlight */}
     <line x1={-7} y1={0} x2={8} y2={0} stroke="rgba(255,255,255,0.12)" strokeWidth={0.6}/>
-    {/* cockpit */}
     <ellipse cx={0.5} cy={0} rx={2.9} ry={1.8} fill="#050610"/>
     <ellipse cx={0.5} cy={0} rx={3.2} ry={2.0} fill="none" stroke={color} strokeWidth={0.4} opacity={0.4}/>
-    {/* halo */}
     <path d="M-1.5,0 Q0.5,-3.8 2.5,0" fill="none" stroke={color} strokeWidth={1.3} strokeLinecap="round" opacity={0.88}/>
-    <rect x={0} y={-4.0} width={1.0} height={1.7} rx={0.3} fill={color} opacity={0.45}/>
-    {/* front tyres */}
     <ellipse cx={4.5} cy={-4.0} rx={1.9} ry={1.2} fill="#060810" stroke={color} strokeWidth={0.7} opacity={0.95}/>
-    <ellipse cx={4.5} cy={4.0} rx={1.9} ry={1.2} fill="#060810" stroke={color} strokeWidth={0.7} opacity={0.95}/>
-    {/* nose cone */}
+    <ellipse cx={4.5} cy={4.0}  rx={1.9} ry={1.2} fill="#060810" stroke={color} strokeWidth={0.7} opacity={0.95}/>
     <path d="M5.5,-2 L11,0 L5.5,2Z" fill={color}/>
-    {/* front wing endplates */}
-    <rect x={10.5} y={-6} width={2.3} height={12} rx={0.7} fill={color} opacity={0.92}/>
+    <rect x={10.5} y={-6}   width={2.3} height={12} rx={0.7} fill={color} opacity={0.92}/>
     <rect x={10.2} y={-6.6} width={2.9} height={1.0} rx={0.3} fill={color} opacity={0.7}/>
-    <rect x={10.2} y={5.6} width={2.9} height={1.0} rx={0.3} fill={color} opacity={0.7}/>
-    {/* front wing cascade elements */}
+    <rect x={10.2} y={5.6}  width={2.9} height={1.0} rx={0.3} fill={color} opacity={0.7}/>
     <path d="M5.5,-2.6 L10.5,-5.0 L10.5,-4.2 L5.5,-2Z" fill={color} opacity={0.68}/>
-    <path d="M5.5,2.6 L10.5,5.0 L10.5,4.2 L5.5,2Z" fill={color} opacity={0.68}/>
+    <path d="M5.5,2.6  L10.5,5.0  L10.5,4.2  L5.5,2Z"  fill={color} opacity={0.68}/>
   </g>);
 }
 
@@ -89,21 +123,65 @@ function TireBar({stints=[],currentLap=1,totalLaps=52}){
   </div>);
 }
 
-// ─── SESSIONS LIST ─────────────────────────────────────────────────────────────
-// Add new sessions here after running fastf1_backend.py for each race.
-// The backend prints the exact entry to add at the end of each run.
-const SESSIONS = [
-  { key:"british_2024_race", flag:"🇬🇧", name:"British GP", year:2024, type:"Race", file:"/data/british_2024_race.json", circuit:"Silverstone" },
-  { key:"monaco_2024_race",  flag:"🇲🇨", name:"Monaco GP",  year:2024, type:"Race", file:"/data/monaco_2024_race.json",  circuit:"Monaco"      },
-  { key:"miami_2026_race",   flag:"🇺🇸", name:"Miami GP",   year:2026, type:"Race", file:"/data/miami_2026_race.json",   circuit:"Miami"       },
-];
- 
+// ─── FASTEST LAP TOAST ────────────────────────────────────────────────────────
+function FastestLapToast({ event }) {
+  const [visible, setVisible] = useState(false);
+  const [current, setCurrent] = useState(null);
+  const timerRef = useRef(null);
 
-// ─── MOCK FALLBACK (shown before any session is selected) ────────────────────
+  useEffect(() => {
+    if (!event) return;
+    setCurrent(event);
+    setVisible(true);
+    clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => setVisible(false), 4000);
+  }, [event]);
+
+  if (!current) return null;
+
+  return (
+    <div style={{
+      position: "fixed", top: 60, left: "50%", transform: `translateX(-50%) translateY(${visible ? 0 : -80}px)`,
+      transition: "transform 0.4s cubic-bezier(.4,0,.2,1), opacity 0.4s",
+      opacity: visible ? 1 : 0,
+      zIndex: 200, pointerEvents: "none",
+      background: "linear-gradient(135deg, #1a0a2e, #0d0a1a)",
+      border: "1px solid #a855f7",
+      borderRadius: 8, padding: "10px 20px",
+      display: "flex", alignItems: "center", gap: 14,
+      boxShadow: "0 0 30px #a855f740",
+    }}>
+      <div style={{ fontSize: 16, color: "#a855f7" }}>⚡</div>
+      <div>
+        <div style={{ fontSize: 7, letterSpacing: 3, color: "#a855f7", marginBottom: 3 }}>
+          FASTEST LAP — LAP {current.lap}
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ width: 3, height: 16, background: current.color, borderRadius: 2 }} />
+          <span style={{ fontSize: 11, color: current.color, fontWeight: 700, letterSpacing: 2 }}>
+            {current.code}
+          </span>
+          <span style={{ fontFamily: "'DM Mono',monospace", fontSize: 13, color: "#d0d2de" }}>
+            {current.time}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── SESSIONS ─────────────────────────────────────────────────────────────────
+const SESSIONS = [
+  { key:"british_2024_race", flag:"🇬🇧", name:"British GP",  year:2024, type:"Race", file:"/data/british_2024_race.json", circuit:"Silverstone" },
+  { key:"monaco_2024_race",  flag:"🇲🇨", name:"Monaco GP",   year:2024, type:"Race", file:"/data/monaco_2024_race.json",  circuit:"Monaco"      },
+  { key:"miami_2026_race",   flag:"🇺🇸", name:"Miami GP",    year:2026, type:"Race", file:"/data/miami_2026_race.json",   circuit:"Miami"       },
+];
+
+// ─── MOCK DATA ────────────────────────────────────────────────────────────────
 const MOCK_DRIVERS=[
   {code:"NOR",name:"Lando Norris",    team:"McLaren",        color:"#FF8000"},
   {code:"HAM",name:"Lewis Hamilton",  team:"Mercedes",       color:"#27F4D2"},
-  {code:"LEC",name:"Charles Leclerc",  team:"Ferrari",        color:"#E8002D"},
+  {code:"LEC",name:"Charles Leclerc", team:"Ferrari",        color:"#E8002D"},
   {code:"VER",name:"Max Verstappen",  team:"Red Bull Racing",color:"#3671C6"},
   {code:"PIA",name:"Oscar Piastri",   team:"McLaren",        color:"#FF9F1C"},
   {code:"RUS",name:"George Russell",  team:"Mercedes",       color:"#00C8BA"},
@@ -120,9 +198,7 @@ const MOCK_TL=(()=>{const out=[];for(let s=0;s<=MOCK_STEPS;s++){const t=s/MOCK_S
 const MOCK_CORNER_LABELS=[["ABBEY",510,248,"start"],["FARM",572,72,"start"],["VILLAGE",618,88,"start"],["THE LOOP",645,152,"start"],["AINTREE",556,202,"middle"],["WELLINGTON",372,183,"middle"],["BROOKLANDS",168,241,"end"],["LUFFIELD",166,333,"end"],["COPSE",303,189,"middle"],["MAGGOTTS",356,265,"start"],["BECKETTS",260,336,"end"],["CHAPEL",296,393,"start"],["HANGAR",455,343,"middle"],["STOWE",595,396,"start"],["VALE",590,462,"start"],["CLUB",450,500,"middle"]];
 const TURN_NAMES={1:"ABBEY",2:"FARM",3:"VILLAGE",4:"THE LOOP",5:"AINTREE",6:"BROOKLANDS",7:"LUFFIELD",8:"WOODCOTE",9:"COPSE",10:"MAGGOTTS",11:"BECKETTS",12:"BECKETTS",13:"BECKETTS",14:"CHAPEL",15:"STOWE",16:"VALE",17:"VALE",18:"CLUB"};
 
-function buildMock(){
-  return{wp:MOCK_WP,tl:MOCK_TL,drivers:MOCK_DRIVERS,steps:MOCK_STEPS,totalLaps:MOCK_LAPS,lapTimeS:MOCK_LAP_S,viewBox:"145 35 525 470",cornerLabels:MOCK_CORNER_LABELS,s1end:32,s2end:54,drs1:[20,24],drs2:[50,54],sessionName:"Select a session →",pitLanePath:[]};
-}
+function buildMock(){return{wp:MOCK_WP,tl:MOCK_TL,drivers:MOCK_DRIVERS,steps:MOCK_STEPS,totalLaps:MOCK_LAPS,lapTimeS:MOCK_LAP_S,viewBox:"145 35 525 470",cornerLabels:MOCK_CORNER_LABELS,s1end:32,s2end:54,drs1:[20,24],drs2:[50,54],sessionName:"Select a session →",pitLanePath:[]};}
 
 function processRealData(json){
   const{track,race}=json,wp=track.points,n=wp.length;
@@ -152,46 +228,74 @@ function processRealData(json){
     });
     tl.push(fr);
   }
-  // ── Auto-detect retirement step from movement data (works without backend field) ──
+  // Auto-detect retirement
   const LOOK=40;
   drivers.forEach(d=>{
-    if(d.retiredAtStep!=null)return; // backend already set it
+    if(d.retiredAtStep!=null)return;
     const raw=rawProg[d.code];if(!raw)return;
     const finalRaw=raw[raw.length-1];
-    if(finalRaw>=race.total_laps-1.5)return; // classified finisher
-    // scan backwards — find last step where progress was still increasing
+    if(finalRaw>=race.total_laps-1.5)return;
     for(let s=raw.length-1;s>=LOOK;s--){
       if(raw[s]-raw[s-LOOK]>0.05){d.retiredAtStep=s;break;}
     }
   });
+
+  // Pre-compute lap times per driver for fastest lap detection
+  // lapTimes[code] = { lap: seconds } — computed from raw progress delta
+  const lapTimes = {};
+  const totalRaceTime = race.total_laps * (race.lap_time_s || 88);
+  drivers.forEach(d => {
+    const raw = rawProg[d.code]; if (!raw) return;
+    lapTimes[d.code] = {};
+    let lastLapStart = 0;
+    for (let s = 1; s <= steps; s++) {
+      const prevLap = Math.floor(raw[s-1]);
+      const curLap  = Math.floor(raw[s]);
+      if (curLap > prevLap && curLap <= race.total_laps) {
+        // Estimated time for the completed lap
+        const lapSecs = ((s - lastLapStart) / steps) * totalRaceTime;
+        lapTimes[d.code][curLap] = lapSecs;
+        lastLapStart = s;
+      }
+    }
+  });
+
   const seen=new Set(),cornerLabels=[];
   (track.corners||[]).forEach(c=>{
     const name=TURN_NAMES[c.number]||`T${c.number}`;
     if(seen.has(name))return;seen.add(name);cornerLabels.push([name,c.x,c.y,"middle"]);
   });
-  return{wp,tl,drivers,steps,totalLaps:race.total_laps,lapTimeS:race.lap_time_s||88,viewBox:`${xMin} ${yMin} ${vbW} ${vbH}`,cornerLabels,s1end:Math.floor(n*0.45),s2end:Math.floor(n*0.75),drs1:[Math.floor(n*0.30),Math.floor(n*0.44)],drs2:[Math.floor(n*0.62),Math.floor(n*0.74)],sessionName:`${race.event} ${race.year} — ${race.session}`,pitLanePath};
+  return{wp,tl,drivers,steps,totalLaps:race.total_laps,lapTimeS:race.lap_time_s||88,
+    viewBox:`${xMin} ${yMin} ${vbW} ${vbH}`,cornerLabels,
+    s1end:Math.floor(n*0.45),s2end:Math.floor(n*0.75),
+    drs1:[Math.floor(n*0.30),Math.floor(n*0.44)],
+    drs2:[Math.floor(n*0.62),Math.floor(n*0.74)],
+    sessionName:`${race.event} ${race.year} — ${race.session}`,
+    pitLanePath, lapTimes};
 }
 
 const TRAIL_LEN=80, TRACK_LEN_M=5891, SPEED_HIST=120;
 
 // ─── MAIN COMPONENT ──────────────────────────────────────────────────────────
 export default function F1App(){
-  const [view,      setView    ]=useState("sessions"); // start on sessions tab
-  const [dataset,   setDataset ]=useState(buildMock);
-  const [dataMode,  setDataMode]=useState("SELECT");
-  const [step,      setStep    ]=useState(0);
-  const [playing,   setPlaying ]=useState(false);
-  const [speed,     setSpeed   ]=useState(10);
-  const [tilt,      setTilt    ]=useState(38);
-  const [sel,       setSel     ]=useState(null);
-  const [hover,     setHover   ]=useState(null);
-  const [carPos,    setCarPos  ]=useState({});
-  const [speedHist, setSpeedHist]=useState({});
-  const [gapHist,   setGapHist ]=useState({});
-  const [loading,   setLoading ]=useState(null); // session name being loaded
-  const [loadErr,   setLoadErr ]=useState(null);
+  const [view,        setView      ]=useState("sessions");
+  const [dataset,     setDataset   ]=useState(buildMock);
+  const [dataMode,    setDataMode  ]=useState("SELECT");
+  const [step,        setStep      ]=useState(0);
+  const [playing,     setPlaying   ]=useState(false);
+  const [speed,       setSpeed     ]=useState(10);
+  const [tilt,        setTilt      ]=useState(38);
+  const [sel,         setSel       ]=useState(null);
+  const [hover,       setHover     ]=useState(null);
+  const [carPos,      setCarPos    ]=useState({});
+  const [speedHist,   setSpeedHist ]=useState({});
+  const [gapHist,     setGapHist   ]=useState({});
+  const [loading,     setLoading   ]=useState(null);
+  const [loadErr,     setLoadErr   ]=useState(null);
+  const [fastestLapEv,setFastestLapEv]=useState(null); // for toast
 
-  const{wp,tl,drivers,steps,totalLaps,lapTimeS,viewBox,cornerLabels,s1end,s2end,drs1,drs2,sessionName,pitLanePath}=dataset;
+  const{wp,tl,drivers,steps,totalLaps,lapTimeS,viewBox,cornerLabels,
+        s1end,s2end,drs1,drs2,sessionName,pitLanePath,lapTimes={}}=dataset;
   const baseStepsPerSec=steps/(totalLaps*lapTimeS);
 
   const pathRef=useRef(null),pitPathRef=useRef(null),rafRef=useRef(null),stepR=useRef(0);
@@ -199,12 +303,20 @@ export default function F1App(){
   const stepsR=useRef(steps),baseRateR=useRef(baseStepsPerSec);
   const tlRef=useRef(tl),driversRef=useRef(drivers);
   const speedHistRef=useRef({}),gapHistRef=useRef({});
+  // Fastest lap tracking — persisted across renders without re-render
+  const fastestRef=useRef({bestTime:Infinity,bestCode:null,bestLap:null});
+  const lapTimesRef=useRef(lapTimes);
+  const driversMapRef=useRef({});
 
   useEffect(()=>{speedR.current=speed;},[speed]);
   useEffect(()=>{stepsR.current=steps;},[steps]);
   useEffect(()=>{baseRateR.current=baseStepsPerSec;},[baseStepsPerSec]);
   useEffect(()=>{tlRef.current=tl;},[tl]);
   useEffect(()=>{driversRef.current=drivers;},[drivers]);
+  useEffect(()=>{lapTimesRef.current=lapTimes;},[lapTimes]);
+  useEffect(()=>{
+    const m={};drivers.forEach(d=>{m[d.code]=d;});driversMapRef.current=m;
+  },[drivers]);
 
   useEffect(()=>{
     const l=document.createElement("link");l.rel="stylesheet";
@@ -212,13 +324,10 @@ export default function F1App(){
     document.head.appendChild(l);return()=>document.head.removeChild(l);
   },[]);
 
-  const trackD=useMemo(()=>catmullPath(wp),[wp]);
+  const trackD  =useMemo(()=>catmullPath(wp),[wp]);
   const pitLaneD=useMemo(()=>catmullPath(pitLanePath,false),[pitLanePath]);
-  const s1D=useMemo(()=>sectorPath(wp,0,s1end),[wp,s1end]);
-  const s2D=useMemo(()=>sectorPath(wp,s1end,s2end),[wp,s1end,s2end]);
-  const s3D=useMemo(()=>sectorPath(wp,s2end,wp.length-1),[wp,s2end]);
-  const drs1D=useMemo(()=>sectorPath(wp,...drs1),[wp,drs1]);
-  const drs2D=useMemo(()=>sectorPath(wp,...drs2),[wp,drs2]);
+  const drs1D   =useMemo(()=>sectorPath(wp,...drs1),[wp,drs1]);
+  const drs2D   =useMemo(()=>sectorPath(wp,...drs2),[wp,drs2]);
 
   const calcPos=useCallback((floatStep)=>{
     const el=pathRef.current;if(!el)return;
@@ -232,14 +341,32 @@ export default function F1App(){
     const out={};
     const LOOK=6,frPrev=tl[Math.max(0,sA-LOOK)]||frA;
     const realDt=LOOK*(lapTimeS*totalLaps/steps);
+
+    // ── Fastest lap detection ────────────────────────────────────────────────
+    const lt=lapTimesRef.current;
+    const dmap=driversMapRef.current;
+    for(const code of Object.keys(lt)){
+      const drvLaps=lt[code];
+      // Check if we just crossed a lap boundary
+      const curLap=frA.lap?.[code];
+      if(curLap&&drvLaps[curLap]){
+        const lapSec=drvLaps[curLap];
+        if(lapSec<fastestRef.current.bestTime&&lapSec>40){
+          fastestRef.current={bestTime:lapSec,bestCode:code,bestLap:curLap};
+          const drv=dmap[code];
+          const mins=Math.floor(lapSec/60);
+          const secs=(lapSec%60).toFixed(3).padStart(6,"0");
+          setFastestLapEv({code,lap:curLap,color:drv?.color||"#a855f7",time:`${mins}:${secs}`});
+        }
+      }
+    }
+
     for(const d of drivers){
       const posA=frA.pos[d.code];if(posA==null)continue;
       const rawNow=frA.raw[d.code]||0;
-      // Check if car is in a pit window
       const pitWin=d.pitWindows?.find(w=>rawNow>=w[0]-0.08&&rawNow<=w[1]+0.08);
       let x,y,angle;
       if(pitWin&&pitEl&&pitTotal>0){
-        // Route car along the pit lane path
         const pitFrac=Math.max(0,Math.min(1,(rawNow-pitWin[0])/(pitWin[1]-pitWin[0])));
         const pitL=pitFrac*pitTotal;
         const pt=pitEl.getPointAtLength(pitL);
@@ -247,7 +374,8 @@ export default function F1App(){
         const pb=pitEl.getPointAtLength(Math.min(pitTotal,pitL+3));
         x=pt.x;y=pt.y;angle=Math.atan2(pb.y-pa.y,pb.x-pa.x)*57.2958;
       }else{
-        const pos=lerpPos(posA,frB?.pos[d.code],frac);
+        // Smooth lerp with clamped max delta — reduces pit-stop jump
+        const pos=lerpPos(posA,frB?.pos[d.code],frac,0.05);
         const l=pos*total;
         const pt=el.getPointAtLength(l);
         const pa=el.getPointAtLength(Math.max(0,l-5));
@@ -280,7 +408,7 @@ export default function F1App(){
     else{if(stepR.current>=stepsR.current)stepR.current=0;playR.current=true;setPlaying(true);lastT.current=null;rafRef.current=requestAnimationFrame(loop);}
   },[loop]);
 
-  const clearAll=()=>{speedHistRef.current={};gapHistRef.current={};setSpeedHist({});setGapHist({});};
+  const clearAll=()=>{speedHistRef.current={};gapHistRef.current={};setSpeedHist({});setGapHist({});fastestRef.current={bestTime:Infinity,bestCode:null,bestLap:null};};
 
   const doRestart=useCallback(()=>{
     cancelAnimationFrame(rafRef.current);playR.current=false;setPlaying(false);lastT.current=null;
@@ -289,38 +417,36 @@ export default function F1App(){
 
   const scrub=useCallback((v)=>{const s=+v;stepR.current=s;setStep(s);clearAll();calcPos(s);},[calcPos]);
 
-  // ── Load a session by clicking it ──────────────────────────────────────────
   const loadSession=useCallback(async(session)=>{
-    setLoading(session.name+" "+session.year);
-    setLoadErr(null);
+    setLoading(session.name+" "+session.year);setLoadErr(null);
     try{
       const res=await fetch(session.file);
-      if(!res.ok) throw new Error(`Could not load ${session.file} (${res.status}). Run the backend for this race first.`);
+      if(!res.ok)throw new Error(`Could not load ${session.file} (${res.status}). Run the backend for this race first.`);
       const json=await res.json();
-      if(!json.track||!json.race) throw new Error("Invalid data format");
+      if(!json.track||!json.race)throw new Error("Invalid data format");
       const processed=processRealData(json);
-      setDataset(processed);
-      setDataMode("DATA");
-      setSel(null);setHover(null);
-      clearAll();
-      setLoading(null);
-      setView("race");           // switch to race view automatically
-      // auto-start playback after a short pause for the track to render
-      setTimeout(()=>{
-        stepR.current=0;
-        playR.current=true;
-        setPlaying(true);
-        lastT.current=null;
-        rafRef.current=requestAnimationFrame(loop);
-      },400);
-    }catch(err){
-      setLoadErr(err.message);
-      setLoading(null);
-    }
+      setDataset(processed);setDataMode("DATA");setSel(null);setHover(null);clearAll();setLoading(null);setView("race");
+      setTimeout(()=>{stepR.current=0;playR.current=true;setPlaying(true);lastT.current=null;rafRef.current=requestAnimationFrame(loop);},400);
+    }catch(err){setLoadErr(err.message);setLoading(null);}
   },[loop]);
 
   useEffect(()=>{if(dataMode!=="SELECT")doRestart();},[dataset]);
   useEffect(()=>()=>cancelAnimationFrame(rafRef.current),[]);
+
+  // Gap history for selected driver
+  useEffect(()=>{
+    if(!sel)return;
+    const fr=tl[step]||{};
+    const sorted=[...drivers].sort((a,b)=>(fr.raw[b.code]||0)-(fr.raw[a.code]||0));
+    const idx=sorted.findIndex(d=>d.code===sel);
+    if(idx<=0)return;
+    const ahead=sorted[idx-1];
+    const gap=((fr.raw[ahead.code]||0)-(fr.raw[sel]||0))*lapTimeS;
+    if(!gapHistRef.current[sel])gapHistRef.current[sel]=[];
+    gapHistRef.current[sel].push(gap);
+    if(gapHistRef.current[sel].length>200)gapHistRef.current[sel].shift();
+    setGapHist({...gapHistRef.current});
+  },[step,sel,tl,drivers,lapTimeS]);
 
   const standings=useMemo(()=>{const fr=tl[step];if(!fr)return drivers;return[...drivers].sort((a,b)=>(fr.raw[b.code]||0)-(fr.raw[a.code]||0));},[tl,step,drivers]);
   const selDriver=sel?drivers.find(d=>d.code===sel):null;
@@ -332,13 +458,15 @@ export default function F1App(){
   const[vbX,vbY,vbW,vbH]=viewBox.split(" ").map(Number);
   const lapLabel=(mult)=>{const s=Math.round(lapTimeS/mult);return s>=60?`${Math.floor(s/60)}m${s%60>0?String(s%60).padStart(2,"0")+"s":""}`:s+"s";};
   const NAV=[{id:"sessions",label:"SESSIONS"},{id:"race",label:"RACE MAP"},{id:"driver",label:"DRIVER"}];
-
   const modeColor={"SELECT":"#333860","DATA":"#4CAF50","LIVE":"#ff4444"}[dataMode]||"#333860";
-  const modeBg  ={"SELECT":"#0e0e22","DATA":"#0e2a0e", "LIVE":"#2a0a0a"}[dataMode]||"#0e0e22";
-  const modeText={"SELECT":"◌ SELECT SESSION","DATA":"◉ "+dataMode,"LIVE":"◉ LIVE"}[dataMode]||"◌";
+  const modeBg  ={"SELECT":"#0e0e22","DATA":"#0e2a0e","LIVE":"#2a0a0a"}[dataMode]||"#0e0e22";
+  const modeText={"SELECT":"◌ SELECT SESSION","DATA":"◉ DATA","LIVE":"◉ LIVE"}[dataMode]||"◌";
 
   return(
     <div style={{fontFamily:"'Orbitron',sans-serif",background:"#0d0d12",color:"#d0d2de",height:"100vh",display:"flex",flexDirection:"column",overflow:"hidden"}}>
+
+      {/* Fastest lap toast */}
+      <FastestLapToast event={fastestLapEv}/>
 
       {/* ── NAV ───────────────────────────────────────────────────────── */}
       <header style={{display:"flex",alignItems:"center",flexShrink:0,borderBottom:"1px solid #1a1c28",background:"#0a0a0f"}}>
@@ -363,7 +491,6 @@ export default function F1App(){
         <div style={{position:"fixed",inset:0,zIndex:100,background:"rgba(6,7,12,0.92)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:16}}>
           <div style={{fontSize:28,letterSpacing:4,color:"#E10600",fontWeight:900}}>F1</div>
           <div style={{fontSize:10,letterSpacing:3,color:"#c4c6d6"}}>LOADING {loading.toUpperCase()}</div>
-          <div style={{fontSize:8,color:"#252840",letterSpacing:2}}>Fetching race data…</div>
           <div style={{width:200,height:2,background:"#0c0e1a",borderRadius:1,overflow:"hidden",marginTop:8}}>
             <div style={{height:"100%",background:"#E10600",animation:"slide 1.2s ease-in-out infinite",width:"40%"}}/>
           </div>
@@ -379,11 +506,7 @@ export default function F1App(){
           <div style={{flex:1,overflowY:"auto",padding:32}}>
             <div style={{maxWidth:680,margin:"0 auto"}}>
               <div style={{fontSize:9,letterSpacing:4,color:"#E10600",marginBottom:6}}>SELECT A SESSION</div>
-              <div style={{fontSize:7,color:"#555878",letterSpacing:2,marginBottom:28}}>
-                Click any session below. The track layout and race data load automatically.
-              </div>
-
-              {/* Group by circuit */}
+              <div style={{fontSize:7,color:"#555878",letterSpacing:2,marginBottom:28}}>Click any session. The track and race data load automatically.</div>
               {[...new Set(SESSIONS.map(s=>s.circuit))].map(circuit=>(
                 <div key={circuit} style={{marginBottom:24}}>
                   <div style={{fontSize:7,letterSpacing:4,color:"#555878",marginBottom:8,paddingBottom:6,borderBottom:"1px solid #1a1c28"}}>
@@ -391,18 +514,11 @@ export default function F1App(){
                   </div>
                   <div style={{display:"flex",flexDirection:"column",gap:4}}>
                     {SESSIONS.filter(s=>s.circuit===circuit).map(session=>(
-                      <button key={session.key} onClick={()=>loadSession(session)} style={{
-                        padding:"14px 20px",borderRadius:6,cursor:"pointer",background:"#0e0e18",
-                        border:"1px solid #1a1c28",display:"flex",alignItems:"center",gap:16,
-                        textAlign:"left",transition:"all .15s",width:"100%",
-                        fontFamily:"'Orbitron',sans-serif",
-                      }}
+                      <button key={session.key} onClick={()=>loadSession(session)} style={{padding:"14px 20px",borderRadius:6,cursor:"pointer",background:"#0e0e18",border:"1px solid #1a1c28",display:"flex",alignItems:"center",gap:16,textAlign:"left",transition:"all .15s",width:"100%",fontFamily:"'Orbitron',sans-serif"}}
                         onMouseEnter={e=>{e.currentTarget.style.background="#13131f";e.currentTarget.style.borderColor="#30344a";}}
                         onMouseLeave={e=>{e.currentTarget.style.background="#0e0e18";e.currentTarget.style.borderColor="#1a1c28";}}>
                         <div style={{flex:1}}>
-                          <div style={{fontSize:10,color:"#d0d2de",letterSpacing:2,marginBottom:4}}>
-                            {session.name} {session.year}
-                          </div>
+                          <div style={{fontSize:10,color:"#d0d2de",letterSpacing:2,marginBottom:4}}>{session.name} {session.year}</div>
                           <div style={{fontSize:7,color:"#555878",letterSpacing:1}}>{session.type}</div>
                         </div>
                         <div style={{fontSize:8,color:"#E10600",letterSpacing:2}}>LOAD →</div>
@@ -411,37 +527,28 @@ export default function F1App(){
                   </div>
                 </div>
               ))}
-
-              {/* Add more sessions instructions */}
               <div style={{marginTop:32,padding:20,borderRadius:6,background:"#0e0e18",border:"1px solid #1a1c28"}}>
                 <div style={{fontSize:8,letterSpacing:3,color:"#555878",marginBottom:12}}>ADD MORE RACES</div>
                 <div style={{fontSize:7,color:"#444660",lineHeight:1.9,fontFamily:"'DM Mono',monospace"}}>
-                  python3 fastf1_backend.py --event "Monaco Grand Prix" --year 2024 --session R<br/>
-                  python3 fastf1_backend.py --event "Miami Grand Prix" --year 2026 --session R<br/>
-                  python3 fastf1_backend.py --event "Canadian Grand Prix" --year 2026 --session R
+                  python3 fastf1_backend.py --event "Canadian Grand Prix" --year 2026 --session R<br/>
+                  python3 fastf1_backend.py --event "Spanish Grand Prix" --year 2026 --session R
                 </div>
-                <div style={{fontSize:6.5,color:"#333550",marginTop:10,letterSpacing:1}}>
-                  Then copy the output JSON into f1-pitwall/public/data/ and push to GitHub.
-                </div>
+                <div style={{fontSize:6.5,color:"#333550",marginTop:10,letterSpacing:1}}>Then copy JSON into f1-pitwall/public/data/ and push to GitHub.</div>
               </div>
             </div>
           </div>
         )}
 
         {/* ─── RACE MAP VIEW ──────────────────────────────────────────── */}
-        {view==="race"&&(
-          <>
+        {view==="race"&&(<>
           <div style={{flex:1,position:"relative",overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"center",perspective:"1100px",perspectiveOrigin:"50% 50%"}}>
             <div style={{position:"absolute",inset:0,pointerEvents:"none",zIndex:2,background:"radial-gradient(ellipse at 55% 50%,transparent 45%,#0d0d12 92%)"}}/>
-
-            {/* "No session" prompt if still on mock */}
             {dataMode==="SELECT"&&(
               <div style={{position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",zIndex:10,textAlign:"center",pointerEvents:"none"}}>
                 <div style={{fontSize:9,letterSpacing:4,color:"#252840",marginBottom:8}}>NO SESSION LOADED</div>
                 <button onClick={()=>setView("sessions")} style={{fontSize:7,letterSpacing:3,color:"#E10600",background:"transparent",border:"1px solid #E10600",padding:"6px 16px",borderRadius:4,cursor:"pointer",fontFamily:"'Orbitron',sans-serif",pointerEvents:"all"}}>← SELECT SESSION</button>
               </div>
             )}
-
             <svg viewBox={viewBox} style={{width:"100%",maxWidth:"min(92vw,900px)",maxHeight:"calc(100vh - 130px)",position:"relative",zIndex:1,transform:`rotateX(${tilt}deg)`,transformOrigin:"center 60%",transition:"transform 0.35s cubic-bezier(.4,0,.2,1)"}}>
               <defs>
                 <filter id="trailBlur"><feGaussianBlur stdDeviation="2"/></filter>
@@ -450,28 +557,21 @@ export default function F1App(){
                   <stop offset="60%" stopColor="#0d0d12" stopOpacity="0"/>
                 </linearGradient>
               </defs>
-              {/* Pit lane surface (drawn behind main track) */}
-              {pitLaneD&&<path d={pitLaneD} fill="none" stroke="#323540" strokeWidth={14} strokeLinecap="round"/>}
-              {pitLaneD&&<path d={pitLaneD} fill="none" stroke="#3c3f50" strokeWidth={10} strokeLinecap="round"/>}
-              {pitLaneD&&<path d={pitLaneD} fill="none" stroke="#464958" strokeWidth={1.5} strokeDasharray="4 6" strokeOpacity={0.6} strokeLinecap="round"/>}
-              {/* Track asphalt layers */}
+              {/* Pit lane */}
+              {pitLaneD&&<><path d={pitLaneD} fill="none" stroke="#323540" strokeWidth={14} strokeLinecap="round"/><path d={pitLaneD} fill="none" stroke="#3c3f50" strokeWidth={10} strokeLinecap="round"/><path d={pitLaneD} fill="none" stroke="#464958" strokeWidth={1.5} strokeDasharray="4 6" strokeOpacity={0.6} strokeLinecap="round"/></>}
+              {/* Track — NO sector colour stripes */}
               <path d={trackD} fill="none" stroke="#2a2d3a" strokeWidth={22} strokeLinecap="round" strokeLinejoin="round"/>
               <path d={trackD} fill="none" stroke="#1e2030" strokeWidth={18} strokeLinecap="round" strokeLinejoin="round"/>
               <path d={trackD} fill="none" stroke="#252838" strokeWidth={14} strokeLinecap="round" strokeLinejoin="round"/>
-              {/* Sector color stripes */}
-              <path d={s1D} fill="none" stroke="#22c55e" strokeWidth={3} strokeOpacity={0.28} strokeLinecap="round"/>
-              <path d={s2D} fill="none" stroke="#a855f7" strokeWidth={3} strokeOpacity={0.28} strokeLinecap="round"/>
-              <path d={s3D} fill="none" stroke="#3b82f6" strokeWidth={3} strokeOpacity={0.28} strokeLinecap="round"/>
-              {/* DRS zones */}
+              {/* DRS zones only */}
               <path d={drs1D} fill="none" stroke="#facc15" strokeWidth={2.5} strokeOpacity={.45} strokeLinecap="round"/>
               <path d={drs2D} fill="none" stroke="#facc15" strokeWidth={2.5} strokeOpacity={.45} strokeLinecap="round"/>
-              {/* Track center line */}
+              {/* Centre dash */}
               <path d={trackD} fill="none" stroke="#343748" strokeWidth={1} strokeDasharray="5 10" strokeOpacity={.5}/>
               {tilt>5&&<rect x={vbX} y={vbY} width={vbW} height={vbH} fill="url(#depthGrad)" style={{pointerEvents:"none"}}/>}
-              {/* Hidden paths for position calculation */}
               <path ref={pathRef} d={trackD} fill="none" stroke="none"/>
               <path ref={pitPathRef} d={pitLaneD||""} fill="none" stroke="none"/>
-              {/* S/F line */}
+              {/* S/F */}
               <line x1={sfX-2} y1={sfY-14} x2={sfX-2} y2={sfY+10} stroke="#ffffff" strokeWidth={2} strokeOpacity={.6}/>
               <text x={sfX+4} y={sfY+3} fill="#7a7d96" fontSize={5.5} fontFamily="'DM Mono',monospace">S/F</text>
               {/* Corner labels */}
@@ -479,13 +579,11 @@ export default function F1App(){
               {/* Battle lines */}
               {standings.map((d,i)=>{
                 if(i===0)return null;
-                const isDNF=d.retiredAtStep!=null&&step>d.retiredAtStep;
-                if(isDNF)return null;
+                const isDNF=d.retiredAtStep!=null&&step>d.retiredAtStep;if(isDNF)return null;
                 const fr=tl[step]||{};
                 const gap=((fr.raw[standings[i-1].code]||0)-(fr.raw[d.code]||0))*lapTimeS;
                 if(gap>1.0)return null;
-                const pA=carPos[standings[i-1].code],pB=carPos[d.code];
-                if(!pA||!pB)return null;
+                const pA=carPos[standings[i-1].code],pB=carPos[d.code];if(!pA||!pB)return null;
                 return(<g key={`b-${d.code}`}><line x1={pA.x} y1={pA.y} x2={pB.x} y2={pB.y} stroke="#FFD700" strokeWidth={1} strokeOpacity={0.3} strokeDasharray="3 4"/><text x={(pA.x+pB.x)/2} y={(pA.y+pB.y)/2-4} fill="#FFD700" fontSize={5} textAnchor="middle" opacity={0.6} fontFamily="'DM Mono',monospace">{gap.toFixed(2)}s</text></g>);
               })}
               {/* Cars */}
@@ -500,28 +598,23 @@ export default function F1App(){
                 const carScale=tilt>0?1.0-depth*0.38:1.0;
                 return(<g key={d.code} style={{cursor:isDNF?"default":"pointer",opacity:baseOpacity,transition:"opacity .15s"}}
                   onClick={()=>!isDNF&&setSel(isActive?null:d.code)} onMouseEnter={()=>!isDNF&&setHover(d.code)} onMouseLeave={()=>setHover(null)}>
-                  {/* glow — subtle, none in pit or DNF */}
                   {!isDNF&&!isInPit&&<ellipse cx={p.x} cy={p.y} rx={14*carScale} ry={6*carScale} fill={d.color} opacity={isActive?0.45:isHover?0.3:0.18} transform={`rotate(${p.angle},${p.x},${p.y})`} style={{filter:"blur(6px)"}}/>}
-                  {/* car body */}
                   <g transform={`translate(${p.x},${p.y}) rotate(${p.angle})`}><CarShape color={isDNF?"#555":d.color} scale={carScale} dimmed={isDNF}/></g>
-                  {/* code badge */}
                   {!isDNF&&<g transform={`translate(${p.x},${p.y-17*carScale})`}>
                     <rect x={-10} y={-6} width={20} height={11} rx={2.5} fill="#05060e" fillOpacity={0.88} stroke={isInPit?"#ff8c00":d.color} strokeWidth={isInPit?1.2:0.9}/>
                     <text x={0} y={1.8} fill={isInPit?"#ff8c00":d.color} fontSize={6} textAnchor="middle" fontWeight="600" fontFamily="'DM Mono',monospace">{isInPit?"PIT":d.code}</text>
                   </g>}
-                  {/* DNF badge */}
                   {isDNF&&<g transform={`translate(${p.x},${p.y-17*carScale})`}>
                     <rect x={-12} y={-6} width={24} height={11} rx={2.5} fill="#1a0505" fillOpacity={0.92} stroke="#5a1515" strokeWidth={0.9}/>
                     <text x={0} y={1.8} fill="#884444" fontSize={6} textAnchor="middle" fontWeight="700" fontFamily="'DM Mono',monospace">DNF</text>
                   </g>}
-                  {/* position badge — only for active cars */}
                   {!isDNF&&(isActive||isHover||rank<=3)&&<g transform={`translate(${p.x},${p.y-31*carScale})`}><rect x={-10} y={-6} width={20} height={11} rx={2.5} fill={d.color} opacity={0.9}/><text x={0} y={1.8} fill="#fff" fontSize={6} textAnchor="middle" fontWeight="700" fontFamily="'Orbitron',sans-serif">P{rank}</text></g>}
                 </g>);
               })}
             </svg>
           </div>
 
-          {/* Sidebar */}
+          {/* Race sidebar */}
           <aside style={{width:210,flexShrink:0,borderLeft:"1px solid #1a1c28",background:"#090910",display:"flex",flexDirection:"column",overflow:"hidden"}}>
             <div style={{padding:"8px 12px",borderBottom:"1px solid #1a1c28",fontSize:7,letterSpacing:4,color:"#555878",fontWeight:700}}>RACE ORDER</div>
             <div style={{flex:1,overflowY:"auto"}}>
@@ -550,9 +643,8 @@ export default function F1App(){
                         <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline"}}>
                           <span style={{fontSize:9,letterSpacing:2,fontWeight:600,color:isDNF?"#7a3535":isInPit?"#ff8c00":(isActive||isHover)?d.color:"#9a9eb8"}}>{d.code}</span>
                           {isDNF
-                            ?<span style={{fontFamily:"'DM Mono',monospace",fontSize:7,color:"#7a3535",letterSpacing:1}}>DNF</span>
-                            :<span style={{fontFamily:"'DM Mono',monospace",fontSize:7,color:i===0?"#4ade80":"#666a88"}}>{i===0?"LEAD":`+${leaderGap!=null?leaderGap.toFixed(1):"?"}s`}</span>
-                          }
+                            ?<span style={{fontFamily:"'DM Mono',monospace",fontSize:7,color:"#7a3535"}}>DNF</span>
+                            :<span style={{fontFamily:"'DM Mono',monospace",fontSize:7,color:i===0?"#4ade80":"#666a88"}}>{i===0?"LEAD":`+${leaderGap!=null?leaderGap.toFixed(1):"?"}s`}</span>}
                         </div>
                         <div style={{fontSize:5.5,color:"#44475e",letterSpacing:1,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>{d.team}</div>
                       </div>
@@ -564,8 +656,7 @@ export default function F1App(){
                           ?<span style={{fontSize:6,letterSpacing:1,color:"#7a3535",fontFamily:"'DM Mono',monospace"}}>retired</span>
                           :<><span style={{fontFamily:"'DM Mono',monospace",fontSize:7,color:"#666a88"}}>{spd}<span style={{fontSize:5,color:"#444660"}}> km/h</span></span>
                             {aheadGap!=null&&aheadGap<3&&<span style={{fontFamily:"'DM Mono',monospace",fontSize:6,color:isBattle?"#FFD700":"#505470",marginLeft:"auto"}}>{aheadGap.toFixed(2)}s↑</span>}
-                          </>
-                      }
+                          </>}
                     </div>
                   </div>
                 </div>);
@@ -575,8 +666,7 @@ export default function F1App(){
               <span style={{fontSize:7,letterSpacing:2,color:"#555878"}}>← CHANGE SESSION</span>
             </div>
           </aside>
-          </>
-        )}
+        </>)}
 
         {/* ─── DRIVER VIEW ────────────────────────────────────────────── */}
         {view==="driver"&&(
@@ -589,7 +679,7 @@ export default function F1App(){
               </div>
             ):(()=>{
               const d=selDriver;
-              const fr=selDriver?tl[step]||{}:{};
+              const fr=tl[step]||{};
               const spdH=speedHist[d.code]||[];
               const currentSpd=spdH[spdH.length-1]||0;
               const sorted=[...drivers].sort((a,b)=>(fr.raw[b.code]||0)-(fr.raw[a.code]||0));
@@ -597,33 +687,94 @@ export default function F1App(){
               const aheadDriver=idx>0?sorted[idx-1]:null;
               const aheadGapNow=aheadDriver?((fr.raw[aheadDriver.code]||0)-(fr.raw[d.code]||0))*lapTimeS:null;
               const currentLap=fr.lap?.[d.code]||1;
+              const info=DRIVER_INFO[d.code]||{};
+              const age=driverAge(info.dob);
+
+              // Best lap this race
+              const dLaps=lapTimes[d.code]||{};
+              const dLapEntries=Object.entries(dLaps);
+              const bestLapEntry=dLapEntries.reduce((best,[lap,t])=>t<best[1]?[lap,t]:best,["—",Infinity]);
+              const bestLapSecs=bestLapEntry[1]<Infinity?bestLapEntry[1]:null;
+              const bestLapFmt=bestLapSecs?`${Math.floor(bestLapSecs/60)}:${(bestLapSecs%60).toFixed(3).padStart(6,"0")}`:"—";
+
               return(<>
-                <div style={{display:"flex",alignItems:"center",gap:20,paddingBottom:16,borderBottom:"1px solid #0c0e1a"}}>
-                  <button onClick={()=>setView("race")} style={{background:"transparent",border:"1px solid #1a1d2e",borderRadius:4,color:"#252840",fontSize:10,cursor:"pointer",padding:"6px 10px",fontFamily:"'Orbitron',sans-serif"}}>←</button>
-                  <div style={{width:4,height:48,background:d.color,borderRadius:2,boxShadow:`0 0 20px ${d.color}`}}/>
-                  <div>
-                    <div style={{fontSize:22,letterSpacing:3,color:d.color,fontWeight:700,lineHeight:1}}>{d.code}</div>
-                    <div style={{fontSize:9,color:"#8a8ea8",letterSpacing:2,marginTop:4}}>{d.name}</div>
-                    <div style={{fontSize:7,color:"#555878",letterSpacing:1,marginTop:2}}>{d.team}</div>
-                  </div>
-                  {[{l:"POSITION",v:`P${selRank}`},{l:"LAP",v:`${currentLap}/${totalLaps}`},{l:"SPEED",v:`${currentSpd} km/h`},aheadDriver?{l:`GAP TO ${aheadDriver.code}`,v:aheadGapNow!=null?`${aheadGapNow.toFixed(2)}s`:"—"}:null].filter(Boolean).map(({l,v})=>(
-                    <div key={l} style={{padding:"8px 14px",background:"#0e0e18",borderRadius:6,border:"1px solid #1a1c28",textAlign:"center",minWidth:80}}>
-                      <div style={{fontSize:5.5,color:"#555878",letterSpacing:2,marginBottom:4}}>{l}</div>
-                      <div style={{fontSize:13,color:"#d0d2de",fontFamily:"'DM Mono',monospace",fontWeight:500}}>{v}</div>
+                {/* Header */}
+                <div style={{display:"flex",alignItems:"flex-start",gap:20,paddingBottom:16,borderBottom:"1px solid #1a1c28"}}>
+                  <button onClick={()=>setView("race")} style={{background:"transparent",border:"1px solid #1a1d2e",borderRadius:4,color:"#555878",fontSize:10,cursor:"pointer",padding:"6px 10px",fontFamily:"'Orbitron',sans-serif",marginTop:4}}>←</button>
+                  <div style={{width:4,height:60,background:d.color,borderRadius:2,boxShadow:`0 0 20px ${d.color}`,flexShrink:0,marginTop:4}}/>
+                  <div style={{flex:1}}>
+                    <div style={{display:"flex",alignItems:"baseline",gap:12}}>
+                      <div style={{fontSize:28,letterSpacing:3,color:d.color,fontWeight:900,lineHeight:1}}>{d.code}</div>
+                      <div style={{fontSize:8,color:"#555878",letterSpacing:2}}>#{d.number||"—"}</div>
                     </div>
-                  ))}
+                    <div style={{fontSize:10,color:"#9a9eb8",letterSpacing:2,marginTop:4}}>{d.name}</div>
+                    <div style={{fontSize:7,color:"#555878",letterSpacing:1,marginTop:2}}>{d.team}</div>
+                    {info.nationality&&<div style={{fontSize:7,color:"#6b6e84",letterSpacing:1,marginTop:4}}>{info.nationality}</div>}
+                    {info.birthplace&&<div style={{fontSize:6.5,color:"#44475e",letterSpacing:1,marginTop:2}}>{info.birthplace}{age?` · Age ${age}`:""}</div>}
+                  </div>
+                  {/* Live stat pills */}
+                  <div style={{display:"flex",flexDirection:"column",gap:6,minWidth:110}}>
+                    {[
+                      {l:"POSITION",   v:`P${selRank}`},
+                      {l:"LAP",        v:`${currentLap} / ${totalLaps}`},
+                      {l:"SPEED",      v:`${currentSpd} km/h`},
+                      {l:"BEST LAP",   v:bestLapFmt,  special:"purple"},
+                      aheadDriver?{l:`GAP TO ${aheadDriver.code}`,v:aheadGapNow!=null?`${aheadGapNow.toFixed(2)}s`:"—",special:aheadGapNow<1?"red":null}:null,
+                    ].filter(Boolean).map(({l,v,special})=>(
+                      <div key={l} style={{padding:"6px 10px",background:"#0e0e18",borderRadius:5,border:`1px solid ${special==="purple"?"#a855f730":special==="red"?"#f8717130":"#1a1c28"}`}}>
+                        <div style={{fontSize:5,color:special==="purple"?"#a855f7":special==="red"?"#f87171":"#555878",letterSpacing:2,marginBottom:3}}>{l}</div>
+                        <div style={{fontSize:11,color:special==="purple"?"#a855f7":special==="red"?"#f87171":"#d0d2de",fontFamily:"'DM Mono',monospace",fontWeight:500}}>{v}</div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
+
+                {/* Bio */}
+                {info.bio&&<div style={{padding:"12px 16px",background:"#0e0e18",borderRadius:6,border:"1px solid #1a1c28",fontSize:8,color:"#555878",lineHeight:1.8,letterSpacing:0.5}}>{info.bio}</div>}
+
+                {/* Charts */}
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
                   <div style={{background:"#0e0e18",borderRadius:8,padding:16,border:"1px solid #1a1c28"}}>
                     <div style={{fontSize:8,letterSpacing:3,color:"#555878",marginBottom:12}}>SPEED TRACE</div>
                     {spdH.length>4?<Sparkline data={spdH} color={d.color} width={280} height={60} min={60} max={360}/>:<div style={{height:60,display:"flex",alignItems:"center",justifyContent:"center",color:"#44475e",fontSize:7,letterSpacing:2}}>PLAY RACE TO SEE TRACE</div>}
+                    <div style={{display:"flex",justifyContent:"space-between",marginTop:6}}>
+                      <span style={{fontSize:6,color:"#44475e",fontFamily:"'DM Mono',monospace"}}>60 km/h</span>
+                      <span style={{fontSize:6,color:d.color,fontFamily:"'DM Mono',monospace",fontWeight:600}}>{currentSpd} km/h now</span>
+                      <span style={{fontSize:6,color:"#44475e",fontFamily:"'DM Mono',monospace"}}>360 km/h</span>
+                    </div>
                   </div>
+
                   <div style={{background:"#0e0e18",borderRadius:8,padding:16,border:"1px solid #1a1c28"}}>
-                    <div style={{fontSize:8,letterSpacing:3,color:"#555878",marginBottom:12}}>GAP TO {aheadDriver?.code||"CAR AHEAD"}</div>
-                    {gapHist[d.code]?.length>4?<Sparkline data={gapHist[d.code]} color={aheadDriver?.color||"#FFD700"} width={280} height={60} min={0} max={10}/>:<div style={{height:60,display:"flex",alignItems:"center",justifyContent:"center",color:"#44475e",fontSize:7,letterSpacing:2}}>{selRank===1?"RACE LEADER":"PLAY RACE TO SEE GAP"}</div>}
-                    {aheadGapNow!=null&&<div style={{marginTop:10,textAlign:"center",fontFamily:"'DM Mono',monospace",fontSize:20,color:aheadGapNow<0.5?"#f87171":aheadGapNow<1?"#FFD700":"#d0d2de"}}>{aheadGapNow.toFixed(3)}s</div>}
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+                      <div style={{fontSize:8,letterSpacing:3,color:"#555878"}}>GAP TO {aheadDriver?.code||"AHEAD"}</div>
+                      {aheadDriver&&<div style={{width:3,height:12,background:aheadDriver.color,borderRadius:2}}/>}
+                    </div>
+                    {gapHist[d.code]?.length>4
+                      ?<Sparkline data={gapHist[d.code]} color={aheadDriver?.color||"#FFD700"} width={280} height={60} min={0} max={Math.max(5,...(gapHist[d.code]||[]))}/>
+                      :<div style={{height:60,display:"flex",alignItems:"center",justifyContent:"center",color:"#44475e",fontSize:7,letterSpacing:2}}>{selRank===1?"RACE LEADER":"PLAY RACE TO SEE GAP"}</div>}
+                    {aheadGapNow!=null&&<div style={{marginTop:10,textAlign:"center",fontFamily:"'DM Mono',monospace",fontSize:22,color:aheadGapNow<0.5?"#f87171":aheadGapNow<1?"#FFD700":"#d0d2de",fontWeight:700}}>{aheadGapNow.toFixed(3)}s</div>}
                   </div>
                 </div>
+
+                {/* Lap times table */}
+                {dLapEntries.length>0&&(
+                  <div style={{background:"#0e0e18",borderRadius:8,padding:16,border:"1px solid #1a1c28"}}>
+                    <div style={{fontSize:8,letterSpacing:3,color:"#555878",marginBottom:12}}>LAP TIMES</div>
+                    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(90px,1fr))",gap:6}}>
+                      {dLapEntries.slice(0,currentLap).map(([lap,t])=>{
+                        const isBest=t===bestLapEntry[1];
+                        const mins=Math.floor(t/60);
+                        const secs=(t%60).toFixed(1).padStart(4,"0");
+                        return(
+                          <div key={lap} style={{padding:"5px 8px",borderRadius:4,background:isBest?"#1a0a2e":"#0a0b14",border:`1px solid ${isBest?"#a855f7":"#1a1c28"}`,textAlign:"center"}}>
+                            <div style={{fontSize:5.5,color:"#44475e",marginBottom:2}}>L{lap}</div>
+                            <div style={{fontFamily:"'DM Mono',monospace",fontSize:8,color:isBest?"#a855f7":"#9a9eb8"}}>{mins}:{secs}</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </>);
             })()}
           </div>

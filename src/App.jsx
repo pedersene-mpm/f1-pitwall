@@ -79,27 +79,44 @@ function driverAge(dob) {
 function CarShape({color, scale=1, dimmed=false}) {
   const s=scale, o=dimmed?0.35:1;
   return (<g transform={`scale(${s})`} opacity={o}>
-    <rect x={-12.5} y={-6.2} width={2.3} height={12.4} rx={0.7} fill={color} opacity={0.92}/>
-    <rect x={-12.3} y={-6.9} width={3.0} height={1.1} rx={0.3} fill={color} opacity={0.7}/>
-    <rect x={-12.3} y={5.8}  width={3.0} height={1.1} rx={0.3} fill={color} opacity={0.7}/>
-    <path d="M-8,-1.5 L-12.5,-2.8 L-12.5,2.8 L-8,1.5Z" fill={color} opacity={0.5}/>
-    <ellipse cx={-6.5} cy={-4.3} rx={2.2} ry={1.4} fill="#060810" stroke={color} strokeWidth={0.7} opacity={0.95}/>
-    <ellipse cx={-6.5} cy={4.3}  rx={2.2} ry={1.4} fill="#060810" stroke={color} strokeWidth={0.7} opacity={0.95}/>
-    <path d="M-7,-3 L3,-4.5 L3,-5.2 L-8,-4Z" fill={color} opacity={0.8}/>
-    <path d="M-7,3  L3,4.5  L3,5.2  L-8,4Z"  fill={color} opacity={0.8}/>
-    <path d="M-8,-2 C-3,-3 3,-3.5 5.5,-2.5 L8.5,0 L5.5,2.5 C3,3.5 -3,3 -8,2Z" fill={color}/>
-    <line x1={-7} y1={0} x2={8} y2={0} stroke="rgba(255,255,255,0.12)" strokeWidth={0.6}/>
-    <ellipse cx={0.5} cy={0} rx={2.9} ry={1.8} fill="#050610"/>
-    <ellipse cx={0.5} cy={0} rx={3.2} ry={2.0} fill="none" stroke={color} strokeWidth={0.4} opacity={0.4}/>
-    <path d="M-1.5,0 Q0.5,-3.8 2.5,0" fill="none" stroke={color} strokeWidth={1.3} strokeLinecap="round" opacity={0.88}/>
-    <ellipse cx={4.5} cy={-4.0} rx={1.9} ry={1.2} fill="#060810" stroke={color} strokeWidth={0.7} opacity={0.95}/>
-    <ellipse cx={4.5} cy={4.0}  rx={1.9} ry={1.2} fill="#060810" stroke={color} strokeWidth={0.7} opacity={0.95}/>
-    <path d="M5.5,-2 L11,0 L5.5,2Z" fill={color}/>
-    <rect x={10.5} y={-6}   width={2.3} height={12} rx={0.7} fill={color} opacity={0.92}/>
-    <rect x={10.2} y={-6.6} width={2.9} height={1.0} rx={0.3} fill={color} opacity={0.7}/>
-    <rect x={10.2} y={5.6}  width={2.9} height={1.0} rx={0.3} fill={color} opacity={0.7}/>
-    <path d="M5.5,-2.6 L10.5,-5.0 L10.5,-4.2 L5.5,-2Z" fill={color} opacity={0.68}/>
-    <path d="M5.5,2.6  L10.5,5.0  L10.5,4.2  L5.5,2Z"  fill={color} opacity={0.68}/>
+    {/* ── REAR WING ── thin, crisp endplates */}
+    <rect x={-13} y={-6.5} width={1.8} height={13} rx={0.4} fill={color}/>
+    <rect x={-13.2} y={-6.8} width={2.4} height={0.9} fill={color}/>
+    <rect x={-13.2} y={5.9}  width={2.4} height={0.9} fill={color}/>
+    {/* ── FLOOR + DIFFUSER ── */}
+    <path d="M-9,-2.2 L-13,-2.6 L-13,2.6 L-9,2.2Z" fill={color} opacity={0.55}/>
+    {/* ── REAR TYRES ── solid black, defined edge */}
+    <rect x={-8.5} y={-5.5} width={4} height={2.3} rx={0.3} fill="#000" stroke={color} strokeWidth={0.4}/>
+    <rect x={-8.5} y={3.2}  width={4} height={2.3} rx={0.3} fill="#000" stroke={color} strokeWidth={0.4}/>
+    {/* ── SIDEPODS ── sharp triangular profile */}
+    <path d="M-7,-3.2 L3.5,-4.5 L4,-3 L-7.2,-2.4Z" fill={color}/>
+    <path d="M-7,3.2  L3.5,4.5  L4,3   L-7.2,2.4Z" fill={color}/>
+    {/* sidepod inlet darkness */}
+    <path d="M-4,-4.1 L-1,-3.6 L-1,-2.9 L-4,-3.4Z" fill="#000" opacity={0.4}/>
+    <path d="M-4,4.1  L-1,3.6  L-1,2.9  L-4,3.4Z"  fill="#000" opacity={0.4}/>
+    {/* ── MAIN CHASSIS ── single bold shape, crisp outline */}
+    <path d="M-9,-2.4 L4,-2.6 L8,-1.4 L9.5,0 L8,1.4 L4,2.6 L-9,2.4Z" fill={color}/>
+    {/* engine cover spine */}
+    <path d="M-7,-0.4 L7,-0.4 L7,0.4 L-7,0.4Z" fill="#000" opacity={0.18}/>
+    {/* ── COCKPIT ── crisp dark tub */}
+    <rect x={-1.8} y={-1.6} width={5} height={3.2} rx={1.2} fill="#000"/>
+    <rect x={-1.8} y={-1.6} width={5} height={3.2} rx={1.2} fill="none" stroke={color} strokeWidth={0.3} opacity={0.5}/>
+    {/* halo bar — thicker, more defined */}
+    <path d="M-1,0 Q1,-3.2 3,0" fill="none" stroke={color} strokeWidth={1.1} strokeLinecap="round"/>
+    <rect x={0.5} y={-3.4} width={0.9} height={1.2} fill={color}/>
+    {/* ── FRONT TYRES ── */}
+    <rect x={3} y={-5.2} width={3.6} height={2.1} rx={0.3} fill="#000" stroke={color} strokeWidth={0.4}/>
+    <rect x={3} y={3.1}  width={3.6} height={2.1} rx={0.3} fill="#000" stroke={color} strokeWidth={0.4}/>
+    {/* ── NOSE CONE ── pointed, sharp */}
+    <path d="M5.5,-1.8 L11.5,0 L5.5,1.8Z" fill={color}/>
+    <path d="M7,-1 L11,0 L7,1Z" fill="#000" opacity={0.15}/>
+    {/* ── FRONT WING ── thin, crisp endplates */}
+    <rect x={11} y={-6.2} width={1.8} height={12.4} rx={0.4} fill={color}/>
+    <rect x={10.7} y={-6.5} width={2.4} height={0.9} fill={color}/>
+    <rect x={10.7} y={5.6}  width={2.4} height={0.9} fill={color}/>
+    {/* front wing element connecting to nose */}
+    <path d="M5.5,-2.4 L11,-4.5 L11,-3.6 L5.5,-1.6Z" fill={color}/>
+    <path d="M5.5,2.4  L11,4.5  L11,3.6  L5.5,1.6Z"  fill={color}/>
   </g>);
 }
 
@@ -758,7 +775,7 @@ export default function F1App(){
                 const isActive=sel===d.code,isHover=hover===d.code;
                 const baseOpacity=isDNF?0.18:(focused&&!isActive&&!isHover?0.22:1);
                 const depth=Math.max(0,Math.min(1,(p.y-vbY)/vbH));
-                const carScale=tilt>0?1.0-depth*0.38:1.0;
+                const carScale=(tilt>0?1.0-depth*0.38:1.0)*0.75;
                 return(<g key={d.code} style={{cursor:isDNF?"default":"pointer",opacity:baseOpacity,transition:"opacity .15s"}}
                   onClick={()=>!isDNF&&setSel(isActive?null:d.code)} onMouseEnter={()=>!isDNF&&setHover(d.code)} onMouseLeave={()=>setHover(null)}>
                   {!isDNF&&!isInPit&&<ellipse cx={p.x} cy={p.y} rx={14*carScale} ry={6*carScale} fill={d.color} opacity={isActive?0.45:isHover?0.3:0.18} transform={`rotate(${p.angle},${p.x},${p.y})`} style={{filter:"blur(6px)"}}/>}
@@ -795,7 +812,7 @@ export default function F1App(){
 
             // ── PANEL LAYOUT (right sidebar) ──
             if(layout==="panel") return (
-              <aside style={{width:220,flexShrink:0,borderLeft:"1px solid #1a1c28",
+              <aside style={{width:240,flexShrink:0,borderLeft:"1px solid #1a1c28",
                 background:"#090910",display:"flex",flexDirection:"column",overflow:"hidden"}}>
                 <div style={{padding:"7px 12px",borderBottom:"1px solid #1a1c28",
                   fontSize:7,letterSpacing:4,color:"#555878",fontWeight:700}}>RACE ORDER</div>
@@ -845,13 +862,13 @@ export default function F1App(){
                             ):isDNF?(
                               <span style={{fontSize:6,color:"#7a3535",fontFamily:"'DM Mono',monospace"}}>retired</span>
                             ):(
-                              <div style={{display:"flex",gap:6}}>
+                              <div style={{display:"flex",gap:8}}>
                                 {sectorData.map((sc,si)=>(
-                                  <div key={si} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
-                                    <div style={{width:36,height:3,borderRadius:2,background:sc.color,
-                                      boxShadow:`0 0 4px ${sc.color}80`}}/>
-                                    <span style={{fontSize:6,color:sc.color,fontFamily:"'DM Mono',monospace",
-                                      opacity:0.85}}>{sc.t}</span>
+                                  <div key={si} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:3}}>
+                                    <div style={{width:44,height:5,borderRadius:2,background:sc.color,
+                                      boxShadow:`0 0 5px ${sc.color}80`}}/>
+                                    <span style={{fontSize:8,color:sc.color,fontFamily:"'DM Mono',monospace",
+                                      fontWeight:600,opacity:0.95}}>{sc.t}</span>
                                   </div>
                                 ))}
                               </div>
@@ -901,7 +918,7 @@ export default function F1App(){
                       onMouseEnter={()=>!isDNF&&setHover(d.code)}
                       onMouseLeave={()=>setHover(null)}
                       style={{
-                        minWidth:88, flexShrink:0,
+                        minWidth:104, flexShrink:0,
                         padding:"8px 10px",
                         cursor:isDNF?"default":"pointer",
                         background:isActive?`${d.color}15`:isHover?"#13131f":"transparent",
@@ -930,13 +947,13 @@ export default function F1App(){
                       </div>
                       {/* Sector bars + times */}
                       {!isDNF&&!isInPit&&(
-                        <div style={{display:"flex",gap:3,marginTop:2}}>
+                        <div style={{display:"flex",gap:5,marginTop:3}}>
                           {sectorData.map((sc,si)=>(
-                            <div key={si} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1}}>
-                              <div style={{width:18,height:3,borderRadius:1,background:sc.color,
-                                boxShadow:`0 0 3px ${sc.color}80`}}/>
-                              <span style={{fontSize:5.5,color:sc.color,fontFamily:"'DM Mono',monospace",
-                                opacity:0.8}}>{sc.t}</span>
+                            <div key={si} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
+                              <div style={{width:24,height:4,borderRadius:1.5,background:sc.color,
+                                boxShadow:`0 0 4px ${sc.color}80`}}/>
+                              <span style={{fontSize:7,color:sc.color,fontFamily:"'DM Mono',monospace",
+                                fontWeight:600,opacity:0.95}}>{sc.t}</span>
                             </div>
                           ))}
                         </div>

@@ -251,10 +251,35 @@ function PitToast({ event }) {
 
 // ─── SESSIONS ─────────────────────────────────────────────────────────────────
 const SESSIONS = [
-  { key:"british_2024_race", flag:"🇬🇧", name:"British GP",  year:2024, type:"Race", file:"/data/british_2024_race.json", circuit:"Silverstone" },
-  { key:"monaco_2024_race",  flag:"🇲🇨", name:"Monaco GP",   year:2024, type:"Race", file:"/data/monaco_2024_race.json",  circuit:"Monaco"      },
-  { key:"miami_2026_race",   flag:"🇺🇸", name:"Miami GP",    year:2026, type:"Race", file:"/data/miami_2026_race.json",   circuit:"Miami"       },
+  { key:"british_2024_race", flag:"🇬🇧", name:"British GP",  year:2024, type:"Race", sessionType:"race", file:"/data/british_2024_race.json", circuit:"Silverstone" },
+  { key:"monaco_2024_race",  flag:"🇲🇨", name:"Monaco GP",   year:2024, type:"Race", sessionType:"race", file:"/data/monaco_2024_race.json",  circuit:"Monaco"      },
+  { key:"miami_2026_race",   flag:"🇺🇸", name:"Miami GP",    year:2026, type:"Race", sessionType:"race", file:"/data/miami_2026_race.json",   circuit:"Miami"       },
 ];
+
+// ─── SESSION TYPES ────────────────────────────────────────────────────────────
+// Each session type drives a different primary view layout:
+//   race      → track map dominant, sidebar with race order (current default)
+//   sprint    → same as race, just shorter (~24 laps)
+//   qualifying → leaderboard by fastest lap, elimination zones, smaller track view
+//   practice  → live timing focused, lap times by tire compound, supplementary track
+//   live      → uses the same layout for that type but data comes from OpenF1
+//
+// Helper: classify a session given its type string.
+const SESSION_TYPES = {
+  RACE:       "race",
+  SPRINT:     "sprint",
+  QUALIFYING: "qualifying",
+  PRACTICE:   "practice",
+};
+
+function classifySessionType(typeStr) {
+  if (!typeStr) return SESSION_TYPES.RACE;
+  const t = typeStr.toLowerCase();
+  if (t.includes("qualif") || t === "q") return SESSION_TYPES.QUALIFYING;
+  if (t.includes("sprint") || t === "s") return SESSION_TYPES.SPRINT;
+  if (t.includes("practice") || t.startsWith("fp") || t === "p1" || t === "p2" || t === "p3") return SESSION_TYPES.PRACTICE;
+  return SESSION_TYPES.RACE;
+}
 
 // ─── CIRCUIT INFO DATABASE ────────────────────────────────────────────────────
 const CIRCUIT_INFO = {
@@ -348,7 +373,7 @@ const MOCK_CORNER_LABELS=[["T1",510,248,"start"],["T2",572,72,"start"],["T3",618
 // Circuit-specific corner name lookups — add per circuit as needed
 // const TURN_NAMES_SILVERSTONE={1:"ABBEY",2:"FARM",...};
 
-function buildMock(){return{wp:MOCK_WP,tl:MOCK_TL,drivers:applyTeammateColors([...MOCK_DRIVERS]),steps:MOCK_STEPS,totalLaps:MOCK_LAPS,lapTimeS:MOCK_LAP_S,viewBox:"145 35 525 470",cornerLabels:MOCK_CORNER_LABELS,corners:[],s1end:32,s2end:54,drs1:[20,24],drs2:[50,54],sessionName:"Select a session →",pitLanePath:generatePitLanePath(MOCK_WP,"Silverstone")};}
+function buildMock(){return{wp:MOCK_WP,tl:MOCK_TL,drivers:applyTeammateColors([...MOCK_DRIVERS]),steps:MOCK_STEPS,totalLaps:MOCK_LAPS,lapTimeS:MOCK_LAP_S,viewBox:"145 35 525 470",cornerLabels:MOCK_CORNER_LABELS,corners:[],s1end:32,s2end:54,drs1:[20,24],drs2:[50,54],sessionName:"Select a session →",sessionType:"race",dataSource:"replay",isLive:false,pitLanePath:generatePitLanePath(MOCK_WP,"Silverstone")};}
 
 // ─── OFFICIAL 2026 TEAM COLORS + IDENTITY ─────────────────────────────────────
 // Canonical hex codes — overrides whatever FastF1 returns to ensure consistency.
@@ -637,6 +662,9 @@ function processRealData(json){
     drs1:[Math.floor(n*0.30),Math.floor(n*0.44)],
     drs2:[Math.floor(n*0.62),Math.floor(n*0.74)],
     sessionName:`${race.event} ${race.year} — ${race.session}`,
+    sessionType: classifySessionType(race.session),
+    dataSource: "replay",   // "replay" or "live" — drives polling vs scrubbing UX
+    isLive:     false,
     pitLanePath, lapTimes};
 }
 
@@ -667,7 +695,8 @@ export default function F1App(){
   const [strategyLoading, setStrategyLoading]=useState(false);
 
   const{wp,tl,drivers,steps,totalLaps,lapTimeS,viewBox,cornerLabels,corners=[],
-        s1end,s2end,drs1,drs2,sessionName,pitLanePath,lapTimes={}}=dataset;
+        s1end,s2end,drs1,drs2,sessionName,pitLanePath,lapTimes={},
+        sessionType="race",dataSource="replay",isLive=false}=dataset;
   const baseStepsPerSec=steps/(totalLaps*lapTimeS);
 
   const pathRef=useRef(null),pitPathRef=useRef(null),rafRef=useRef(null),stepR=useRef(0);
@@ -697,7 +726,7 @@ export default function F1App(){
     document.head.appendChild(l);
     // Inject sector shimmer animation globally
     const s=document.createElement("style");
-    s.textContent="@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}";
+    s.textContent="@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}@keyframes livePulse{0%,100%{opacity:1}50%{opacity:0.35}}";
     document.head.appendChild(s);
     return()=>{document.head.removeChild(l);document.head.removeChild(s);};
   },[]);
@@ -1062,6 +1091,19 @@ export default function F1App(){
             </div>
           )}
           <span style={{fontSize:8,color:"#6b6e84",letterSpacing:1,maxWidth:280,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>{sessionName}</span>
+          {/* Session type pill — RACE / QUAL / FP1 etc */}
+          {dataMode!=="SELECT"&&(
+            <span style={{fontSize:6.5,letterSpacing:2,padding:"2px 6px",background:"#0e0e18",color:"#9a9eb8",border:"1px solid #1a1c28",borderRadius:3,fontWeight:700}}>
+              {sessionType==="qualifying"?"QUAL":sessionType==="practice"?"PRAC":sessionType==="sprint"?"SPRINT":"RACE"}
+            </span>
+          )}
+          {/* Live indicator with pulsing dot */}
+          {isLive&&(
+            <span style={{fontSize:6.5,letterSpacing:2,padding:"2px 7px",background:"#2a0606",color:"#ff3333",border:"1px solid #ff333355",borderRadius:3,display:"flex",alignItems:"center",gap:5,fontWeight:700}}>
+              <span style={{width:6,height:6,borderRadius:"50%",background:"#ff3333",animation:"livePulse 1.5s ease-in-out infinite"}}/>
+              LIVE
+            </span>
+          )}
           <span style={{fontSize:7,letterSpacing:2,padding:"2px 7px",background:modeBg,color:modeColor,border:`1px solid ${modeColor}50`,borderRadius:3}}>{modeText}</span>
           {dataMode!=="SELECT"&&<div style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:"#7a7d96"}}>LAP <span style={{color:"#fff",fontSize:13,fontWeight:700}}>{leaderLap}</span>/{totalLaps}</div>}
         </div>

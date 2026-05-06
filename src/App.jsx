@@ -535,21 +535,9 @@ function darkenHex(hex, amount=0.35) {
   return `#${dr.toString(16).padStart(2,"0")}${dg.toString(16).padStart(2,"0")}${db.toString(16).padStart(2,"0")}`;
 }
 
-// Apply darker shade to one driver per team — reverse alphabetical so:
-// LEC > HAM, VER > HAD, RUS > ANT, PER > BOT, GAS > COL, OCO > BEA, etc.
-// (the second after sort gets darkened)
+// Keep both teammates the same colour — easier to read team identity at a glance
 function applyTeammateColors(drivers) {
-  const teamGroups={};
-  drivers.forEach(d=>{
-    if(!teamGroups[d.team]) teamGroups[d.team]=[];
-    teamGroups[d.team].push(d);
-  });
-  Object.values(teamGroups).forEach(group=>{
-    if(group.length<2) return;
-    group.sort((a,b)=>b.code.localeCompare(a.code)); // reverse alpha
-    group[1].color=darkenHex(group[1].color,0.42);
-  });
-  return drivers;
+  return drivers; // no-op
 }
 
 function processRealData(json){
@@ -833,7 +821,12 @@ export default function F1App(){
         x=pt.x;y=pt.y;angle=Math.atan2(pb.y-pa.y,pb.x-pa.x)*57.2958;
       }else{
         // Smooth lerp on track
-        const pos=lerpPos(posA,frB?.pos[d.code],frac,0.05);
+        // After a pit exit, the car's data position has advanced significantly
+        // while it was on pit lane. Use a larger lerp delta to let the on-track
+        // position catch up rather than crawl.
+        const justLeftPit = lastRenderRef.current[d.code]?.inPit === true;
+        const lerpClamp = justLeftPit ? 0.25 : 0.05;
+        const pos=lerpPos(posA,frB?.pos[d.code],frac,lerpClamp);
         const l=pos*total;
         const pt=el.getPointAtLength(l);
         const pa=el.getPointAtLength(Math.max(0,l-5));
@@ -842,20 +835,22 @@ export default function F1App(){
       }
 
       // ── Pixel-space smoothing across pit↔track transitions ──
-      // After a pit→track or track→pit transition, keep smoothing for a few
-      // frames so the car eases all the way to its target position rather than
-      // catching up in a single 32% step.
+      // After a pit→track or track→pit transition, keep smoothing for several
+      // frames. The ease rate must outpace how fast rawNow advances or the
+      // smoothed car never catches up to its actual data position.
       const last=lastRenderRef.current[d.code];
       if(last){
         const dx=x-last.x, dy=y-last.y;
         const jumpDist=Math.hypot(dx,dy);
         const stateChanged = last.inPit !== isInPit;
-        // Start a transition cooldown when state changes; decrement each frame
         let cooldown = last.cooldown ?? 0;
-        if (stateChanged) cooldown = 14; // smooth over ~14 frames (~230ms at 60fps)
-        // Apply smoothing if in cooldown OR if there's any meaningful jump
+        if (stateChanged) cooldown = 10; // smooth ~10 frames
         if (cooldown > 0 || jumpDist > 6) {
-          const ease = 0.22; // gentler ease per frame
+          // Adaptive ease: accelerates to converge as cooldown winds down,
+          // ensuring the car actually catches up to its target position.
+          // Frame 0: 0.35, Frame 5: ~0.55, Frame 9: ~0.85
+          const progress = 1 - (cooldown / 10);
+          const ease = 0.35 + progress * 0.5;
           x = last.x + dx*ease;
           y = last.y + dy*ease;
           let da = angle-last.angle;

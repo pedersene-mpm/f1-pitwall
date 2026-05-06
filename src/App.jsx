@@ -362,7 +362,7 @@ const MOCK_DRIVERS=[
   {code:"RUS",name:"George Russell",  team:"Mercedes",       color:"#27F4D2"},
   {code:"ANT",name:"Kimi Antonelli",  team:"Mercedes",       color:"#27F4D2"},
   {code:"ALO",name:"Fernando Alonso", team:"Aston Martin",   color:"#229971"},
-  {code:"GAS",name:"Pierre Gasly",    team:"Alpine",         color:"#FF87BC"},
+  {code:"GAS",name:"Pierre Gasly",    team:"Alpine",         color:"#00A1E8"},
 ];
 const MOCK_WP=[[299.3,249.6],[346.6,254.2],[399.4,258.7],[452.3,263.2],[499.6,236.1],[527.4,186.3],[544.1,136.5],[555.2,100.3],[563.6,73.1],[569.1,55.0],[574.7,68.6],[588.6,91.2],[605.3,109.3],[619.2,118.4],[630.3,150.1],[622.0,181.7],[605.3,199.8],[577.5,213.4],[541.3,213.4],[485.7,208.9],[424.5,204.4],[360.5,199.8],[304.9,195.3],[249.2,195.3],[207.5,208.9],[185.2,245.1],[179.7,285.8],[182.5,326.6],[199.1,362.8],[229.7,380.9],[265.9,376.4],[288.2,349.2],[296.5,313.0],[290.9,281.3],[293.7,254.2],[302.1,222.5],[316.0,199.8],[329.9,199.8],[343.8,222.5],[349.4,249.6],[341.0,276.8],[327.1,299.4],[310.4,313.0],[296.5,326.6],[282.6,335.6],[274.3,344.7],[271.5,353.7],[277.0,367.3],[288.2,371.8],[307.6,376.4],[332.7,371.8],[374.4,362.8],[427.3,358.3],[477.3,353.7],[524.6,353.7],[558.0,371.8],[577.5,399.0],[583.0,430.7],[574.7,457.8],[558.0,480.5],[535.7,485.0],[519.1,471.4],[505.1,448.8],[482.9,421.6],[455.1,389.9],[421.7,358.3],[380.0,326.6],[341.0,299.4],[313.2,272.3]];
 const MOCK_STEPS=5000,MOCK_LAPS=52,MOCK_LAP_S=89;
@@ -383,16 +383,16 @@ const TEAM_COLORS = {
   "McLaren":      { primary:"#FF8000", short:"MCL", full:"McLaren"              },
   "Mercedes":     { primary:"#27F4D2", short:"MER", full:"Mercedes-AMG Petronas"},
   "Aston Martin": { primary:"#229971", short:"AMR", full:"Aston Martin Aramco"  },
-  "Alpine":       { primary:"#FF87BC", short:"ALP", full:"Alpine"               },
+  "Alpine":       { primary:"#00A1E8", short:"ALP", full:"Alpine"               },
   "Williams":     { primary:"#1868DB", short:"WIL", full:"Williams"             },
-  "Haas":         { primary:"#B6BABD", short:"HAA", full:"Haas"                 },
-  "Audi":         { primary:"#52E252", short:"AUD", full:"Audi"                 },
-  "Sauber":       { primary:"#52E252", short:"AUD", full:"Audi (was Sauber)"    },
-  "Cadillac":     { primary:"#FFC72C", short:"CAD", full:"Cadillac"             },
+  "Haas":         { primary:"#DEE1E2", short:"HAA", full:"Haas"                 },
+  "Audi":         { primary:"#FF2D00", short:"AUD", full:"Audi"                 },
+  "Sauber":       { primary:"#FF2D00", short:"AUD", full:"Audi (was Sauber)"    },
+  "Cadillac":     { primary:"#AAAAAD", short:"CAD", full:"Cadillac"             },
   "Racing Bulls": { primary:"#6692FF", short:"RB",  full:"Racing Bulls"         },
   "RB":           { primary:"#6692FF", short:"RB",  full:"Racing Bulls"         },
   "AlphaTauri":   { primary:"#6692FF", short:"RB",  full:"Racing Bulls"         },
-  "Alfa Romeo":   { primary:"#52E252", short:"AUD", full:"Audi (was Alfa Romeo)"},
+  "Alfa Romeo":   { primary:"#FF2D00", short:"AUD", full:"Audi (was Alfa Romeo)"},
 };
 
 // Driver → Team mapping for the 2026 grid (independent of FastF1 strings)
@@ -572,19 +572,19 @@ function processRealData(json){
   // If the backend gave us pit_laps for a driver but no pit_windows, construct
   // them from the circuit's startFrac/endFrac so the car routes onto the
   // visual pit lane during the right portion of each pit-stop lap.
-  // Slight bias: extend window 0.015 earlier on entry and 0.025 later on exit
-  // so cars peel off and merge back naturally rather than visibly jumping.
+  // Entry bias only — early peel-off looks natural. No exit bias because
+  // extending past geometry causes the car to freeze at pit endpoint while
+  // data advances, then teleport when bias expires.
   const cfg = circuitKey ? CIRCUIT_PIT_LANE[circuitKey] : null;
   const ENTRY_BIAS = 0.015;
-  const EXIT_BIAS  = 0.025;
   drivers.forEach(d=>{
-    if (d.pitWindows.length>0) return; // backend already provided windows
+    if (d.pitWindows.length>0) return;
     if (!cfg || !d.pitLaps?.length) return;
     d.pitWindows = d.pitLaps.map(lapNum => {
       if (cfg.wrap) {
-        return [lapNum - 1 + cfg.startFrac - ENTRY_BIAS, lapNum + cfg.endFrac + EXIT_BIAS];
+        return [lapNum - 1 + cfg.startFrac - ENTRY_BIAS, lapNum + cfg.endFrac];
       }
-      return [lapNum + cfg.startFrac - ENTRY_BIAS, lapNum + cfg.endFrac + EXIT_BIAS];
+      return [lapNum + cfg.startFrac - ENTRY_BIAS, lapNum + cfg.endFrac];
     });
   });
   const rawProg={};
@@ -821,12 +821,7 @@ export default function F1App(){
         x=pt.x;y=pt.y;angle=Math.atan2(pb.y-pa.y,pb.x-pa.x)*57.2958;
       }else{
         // Smooth lerp on track
-        // After a pit exit, the car's data position has advanced significantly
-        // while it was on pit lane. Use a larger lerp delta to let the on-track
-        // position catch up rather than crawl.
-        const justLeftPit = lastRenderRef.current[d.code]?.inPit === true;
-        const lerpClamp = justLeftPit ? 0.25 : 0.05;
-        const pos=lerpPos(posA,frB?.pos[d.code],frac,lerpClamp);
+        const pos=lerpPos(posA,frB?.pos[d.code],frac,0.05);
         const l=pos*total;
         const pt=el.getPointAtLength(l);
         const pa=el.getPointAtLength(Math.max(0,l-5));
@@ -835,22 +830,18 @@ export default function F1App(){
       }
 
       // ── Pixel-space smoothing across pit↔track transitions ──
-      // After a pit→track or track→pit transition, keep smoothing for several
-      // frames. The ease rate must outpace how fast rawNow advances or the
-      // smoothed car never catches up to its actual data position.
+      // High ease (0.7) gives a small permanent lag during cooldown
+      // (~4 SVG units at typical speeds — below the 6-unit smoothing
+      // threshold) so the cooldown ends seamlessly without a final pop.
       const last=lastRenderRef.current[d.code];
       if(last){
         const dx=x-last.x, dy=y-last.y;
         const jumpDist=Math.hypot(dx,dy);
         const stateChanged = last.inPit !== isInPit;
         let cooldown = last.cooldown ?? 0;
-        if (stateChanged) cooldown = 10; // smooth ~10 frames
+        if (stateChanged) cooldown = 5;
         if (cooldown > 0 || jumpDist > 6) {
-          // Adaptive ease: accelerates to converge as cooldown winds down,
-          // ensuring the car actually catches up to its target position.
-          // Frame 0: 0.35, Frame 5: ~0.55, Frame 9: ~0.85
-          const progress = 1 - (cooldown / 10);
-          const ease = 0.35 + progress * 0.5;
+          const ease = 0.7;
           x = last.x + dx*ease;
           y = last.y + dy*ease;
           let da = angle-last.angle;

@@ -480,20 +480,28 @@ export default function F1App(){
     const realDt=LOOK*(lapTimeS*totalLaps/steps);
 
     // ── Fastest lap detection ────────────────────────────────────────────────
+    // Fire the toast only AFTER a driver has driven into the next lap by at
+    // least 10% — so the time appears as they cross start/finish rather than
+    // at the moment a fast S3 finishes (which would imply we knew the time
+    // instantly, which we don't).
     const lt=lapTimesRef.current;
     const dmap=driversMapRef.current;
     for(const code of Object.keys(lt)){
       const drvLaps=lt[code];
-      // Check if we just crossed a lap boundary
+      const rawNow=frA.raw?.[code]||0;
+      const lapFrac=rawNow-Math.floor(rawNow);
+      // The lap that JUST completed is one less than the current lap number.
+      // Only show the toast once the driver is at least 10% into the new lap.
       const curLap=frA.lap?.[code];
-      if(curLap&&drvLaps[curLap]){
-        const lapSec=drvLaps[curLap];
+      const completedLap=curLap?curLap-1:null;
+      if(completedLap&&completedLap>=1&&drvLaps[completedLap]&&lapFrac>=0.10){
+        const lapSec=drvLaps[completedLap];
         if(lapSec<fastestRef.current.bestTime&&lapSec>40){
-          fastestRef.current={bestTime:lapSec,bestCode:code,bestLap:curLap};
+          fastestRef.current={bestTime:lapSec,bestCode:code,bestLap:completedLap};
           const drv=dmap[code];
           const mins=Math.floor(lapSec/60);
           const secs=(lapSec%60).toFixed(3).padStart(6,"0");
-          setFastestLapEv({code,lap:curLap,color:drv?.color||"#a855f7",time:`${mins}:${secs}`});
+          setFastestLapEv({code,lap:completedLap,color:drv?.color||"#a855f7",time:`${mins}:${secs}`});
         }
       }
     }

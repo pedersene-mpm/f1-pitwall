@@ -348,7 +348,7 @@ const MOCK_CORNER_LABELS=[["T1",510,248,"start"],["T2",572,72,"start"],["T3",618
 // Circuit-specific corner name lookups — add per circuit as needed
 // const TURN_NAMES_SILVERSTONE={1:"ABBEY",2:"FARM",...};
 
-function buildMock(){return{wp:MOCK_WP,tl:MOCK_TL,drivers:applyTeammateColors([...MOCK_DRIVERS]),steps:MOCK_STEPS,totalLaps:MOCK_LAPS,lapTimeS:MOCK_LAP_S,viewBox:"145 35 525 470",cornerLabels:MOCK_CORNER_LABELS,s1end:32,s2end:54,drs1:[20,24],drs2:[50,54],sessionName:"Select a session →",pitLanePath:generatePitLanePath(MOCK_WP,"Silverstone")};}
+function buildMock(){return{wp:MOCK_WP,tl:MOCK_TL,drivers:applyTeammateColors([...MOCK_DRIVERS]),steps:MOCK_STEPS,totalLaps:MOCK_LAPS,lapTimeS:MOCK_LAP_S,viewBox:"145 35 525 470",cornerLabels:MOCK_CORNER_LABELS,corners:[],s1end:32,s2end:54,drs1:[20,24],drs2:[50,54],sessionName:"Select a session →",pitLanePath:generatePitLanePath(MOCK_WP,"Silverstone")};}
 
 // ─── OFFICIAL 2026 TEAM COLORS + IDENTITY ─────────────────────────────────────
 // Canonical hex codes — overrides whatever FastF1 returns to ensure consistency.
@@ -554,6 +554,24 @@ function processRealData(json){
   const pitLanePath = backendPitLane.length>=4
     ? backendPitLane
     : generatePitLanePath(wp, circuitKey);
+
+  // ── Build pit windows from pit_laps using the circuit's pit lane fractions ──
+  // If the backend gave us pit_laps for a driver but no pit_windows, construct
+  // them from the circuit's startFrac/endFrac so the car routes onto the
+  // visual pit lane during the right portion of each pit-stop lap.
+  const cfg = circuitKey ? CIRCUIT_PIT_LANE[circuitKey] : null;
+  drivers.forEach(d=>{
+    if (d.pitWindows.length>0) return; // backend already provided windows
+    if (!cfg || !d.pitLaps?.length) return;
+    d.pitWindows = d.pitLaps.map(lapNum => {
+      // For wrap-around pit lanes (cross S/F): window = [lapNum-1 + startFrac, lapNum + endFrac]
+      // For non-wrap pit lanes: window = [lapNum + startFrac, lapNum + endFrac]
+      if (cfg.wrap) {
+        return [lapNum - 1 + cfg.startFrac, lapNum + cfg.endFrac];
+      }
+      return [lapNum + cfg.startFrac, lapNum + cfg.endFrac];
+    });
+  });
   const rawProg={};
   drivers.forEach(d=>{
     const pos=race.positions[d.code];if(!pos)return;
@@ -614,6 +632,7 @@ function processRealData(json){
   });
   return{wp,tl,drivers,steps,totalLaps:race.total_laps,lapTimeS:race.lap_time_s||88,
     viewBox:`${xMin} ${yMin} ${vbW} ${vbH}`,cornerLabels,
+    corners:track.corners||[],
     s1end:Math.floor(n*0.45),s2end:Math.floor(n*0.75),
     drs1:[Math.floor(n*0.30),Math.floor(n*0.44)],
     drs2:[Math.floor(n*0.62),Math.floor(n*0.74)],
@@ -647,7 +666,7 @@ export default function F1App(){
   const [strategyErr,  setStrategyErr ]=useState(null);
   const [strategyLoading, setStrategyLoading]=useState(false);
 
-  const{wp,tl,drivers,steps,totalLaps,lapTimeS,viewBox,cornerLabels,
+  const{wp,tl,drivers,steps,totalLaps,lapTimeS,viewBox,cornerLabels,corners=[],
         s1end,s2end,drs1,drs2,sessionName,pitLanePath,lapTimes={}}=dataset;
   const baseStepsPerSec=steps/(totalLaps*lapTimeS);
 
@@ -770,7 +789,11 @@ export default function F1App(){
 
       let x,y,angle;
       if(pitWin&&pitEl&&pitTotal>0){
-        const pitFrac=Math.max(0,Math.min(1,(rawNow-pitWin[0])/(pitWin[1]-pitWin[0])));
+        // Smooth interpolation while in pit lane — interpolate raw progress
+        // between frame A and frame B by the same frac used on-track.
+        const rawB = frB?.raw?.[d.code] ?? rawNow;
+        const rawSmooth = rawNow + (rawB - rawNow) * frac;
+        const pitFrac=Math.max(0,Math.min(1,(rawSmooth-pitWin[0])/(pitWin[1]-pitWin[0])));
         const pitL=pitFrac*pitTotal;
         const pt=pitEl.getPointAtLength(pitL);
         const pa=pitEl.getPointAtLength(Math.max(0,pitL-3));
@@ -1093,14 +1116,18 @@ export default function F1App(){
                   <feGaussianBlur stdDeviation="12" result="b"/>
                   <feMerge><feMergeNode in="b"/></feMerge>
                 </filter>
+                <filter id="ambientHalo" x="-30%" y="-30%" width="160%" height="160%">
+                  <feGaussianBlur stdDeviation="22" result="b"/>
+                  <feMerge><feMergeNode in="b"/></feMerge>
+                </filter>
                 <linearGradient id="depthGrad" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor="#0d0d12" stopOpacity={tilt>5?0.6:0}/>
                   <stop offset="55%" stopColor="#0d0d12" stopOpacity="0"/>
                 </linearGradient>
               </defs>
-              {/* Ambient glow */}
-              <path d={trackD} fill="none" stroke="#1a3acc" strokeWidth={32} strokeOpacity={0.04} style={{filter:"url(#trackGlow)"}}/>
-              {/* Pit lane */}
+              {/* Ambient halo — soft cyan aura for broadcast feel */}
+              <path d={trackD} fill="none" stroke="#3b82f6" strokeWidth={50} strokeOpacity={0.04} style={{filter:"url(#ambientHalo)"}}/>
+              <path d={trackD} fill="none" stroke="#1a3acc" strokeWidth={32} strokeOpacity={0.05} style={{filter:"url(#trackGlow)"}}/>
               {/* Pit lane — parallel to S/F straight, white-edged */}
               {pitLaneD&&<>
                 <path d={pitLaneD} fill="none" stroke="#ffffff" strokeWidth={9} strokeLinecap="round" strokeOpacity={0.7}/>
@@ -1108,13 +1135,30 @@ export default function F1App(){
                 <path d={pitLaneD} fill="none" stroke="#252838" strokeWidth={5} strokeLinecap="round"/>
                 <path d={pitLaneD} fill="none" stroke="#ffffff" strokeWidth={0.6} strokeDasharray="3 5" strokeOpacity={0.45} strokeLinecap="round"/>
               </>}
-              {/* Track — white border lines give circuit shape, dark asphalt fill */}
-              <path d={trackD} fill="none" stroke="#ffffff" strokeWidth={22} strokeLinecap="round" strokeLinejoin="round" strokeOpacity={0.9}/>
-              <path d={trackD} fill="none" stroke="#1e2030" strokeWidth={18} strokeLinecap="round" strokeLinejoin="round"/>
-              <path d={trackD} fill="none" stroke="#252838" strokeWidth={14} strokeLinecap="round" strokeLinejoin="round"/>
-              <path d={trackD} fill="none" stroke="#2e3248" strokeWidth={8} strokeLinecap="round" strokeLinejoin="round" strokeOpacity={0.7}/>
+              {/* Track — runoff first (wider grey halo), then borders, then asphalt */}
+              <path d={trackD} fill="none" stroke="#3a3e5a" strokeWidth={32} strokeLinecap="round" strokeLinejoin="round" strokeOpacity={0.18}/>
+              <path d={trackD} fill="none" stroke="#ffffff" strokeWidth={22} strokeLinecap="round" strokeLinejoin="round" strokeOpacity={0.92}/>
+              <path d={trackD} fill="none" stroke="#1a1c2c" strokeWidth={20} strokeLinecap="round" strokeLinejoin="round"/>
+              <path d={trackD} fill="none" stroke="#23263a" strokeWidth={17} strokeLinecap="round" strokeLinejoin="round"/>
+              <path d={trackD} fill="none" stroke="#2c2f44" strokeWidth={12} strokeLinecap="round" strokeLinejoin="round" strokeOpacity={0.8}/>
+              {/* Subtle racing line — slightly lighter strip near inside */}
+              <path d={trackD} fill="none" stroke="#3a3e5a" strokeWidth={5} strokeLinecap="round" strokeLinejoin="round" strokeOpacity={0.3}/>
               {/* Centre dash */}
-              <path d={trackD} fill="none" stroke="#343748" strokeWidth={0.8} strokeDasharray="5 10" strokeOpacity={.45}/>
+              <path d={trackD} fill="none" stroke="#4a4e6e" strokeWidth={0.8} strokeDasharray="5 10" strokeOpacity={.5}/>
+              {/* Sector tint washes — visible colour over each sector segment */}
+              {(()=>{
+                if(!wp||wp.length<5||!s1end||!s2end) return null;
+                const s1Path = sectorPath(wp, 0, s1end);
+                const s2Path = sectorPath(wp, s1end, s2end);
+                const s3Path = sectorPath(wp, s2end, wp.length-1);
+                return(
+                  <>
+                    <path d={s1Path} fill="none" stroke="#22c55e" strokeWidth={13} strokeOpacity={0.20} strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d={s2Path} fill="none" stroke="#a855f7" strokeWidth={13} strokeOpacity={0.20} strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d={s3Path} fill="none" stroke="#3b82f6" strokeWidth={13} strokeOpacity={0.20} strokeLinecap="round" strokeLinejoin="round"/>
+                  </>
+                );
+              })()}
               {/* DRS detection point markers — dot only at zone start */}
               {wp[drs1[0]]&&(<g>
                 <circle cx={wp[drs1[0]][0]} cy={wp[drs1[0]][1]} r={5} fill="#facc15" opacity={0.85}/>
@@ -1155,13 +1199,7 @@ export default function F1App(){
                     textAnchor="middle" opacity={0.7}>S/F</text>
                 </>;
               })()}
-              {/* Corner kerbs — small red/white striped accent at each corner */}
-              {cornerLabels.map(([name,x,y])=>(
-                <g key={`kerb-${name}`}>
-                  <circle cx={x} cy={y+2} r={1.4} fill="#ff3333" opacity={0.4}/>
-                  <circle cx={x} cy={y+2} r={0.7} fill="#ffffff" opacity={0.6}/>
-                </g>
-              ))}
+              {/* Corner kerbs removed per user request */}
 
               {/* Corner labels — white */}
               {cornerLabels.map(([name,x,y,anchor])=>(<text key={name} x={x} y={y} fill="#ffffff" fontSize={5.5} textAnchor={anchor} fontFamily="'DM Mono',monospace" letterSpacing={.5} opacity={0.7}>{name}</text>))}

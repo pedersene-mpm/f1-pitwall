@@ -584,17 +584,19 @@ function processRealData(json){
   // If the backend gave us pit_laps for a driver but no pit_windows, construct
   // them from the circuit's startFrac/endFrac so the car routes onto the
   // visual pit lane during the right portion of each pit-stop lap.
+  // Slight bias: extend window 0.015 earlier on entry and 0.025 later on exit
+  // so cars peel off and merge back naturally rather than visibly jumping.
   const cfg = circuitKey ? CIRCUIT_PIT_LANE[circuitKey] : null;
+  const ENTRY_BIAS = 0.015;
+  const EXIT_BIAS  = 0.025;
   drivers.forEach(d=>{
     if (d.pitWindows.length>0) return; // backend already provided windows
     if (!cfg || !d.pitLaps?.length) return;
     d.pitWindows = d.pitLaps.map(lapNum => {
-      // For wrap-around pit lanes (cross S/F): window = [lapNum-1 + startFrac, lapNum + endFrac]
-      // For non-wrap pit lanes: window = [lapNum + startFrac, lapNum + endFrac]
       if (cfg.wrap) {
-        return [lapNum - 1 + cfg.startFrac, lapNum + cfg.endFrac];
+        return [lapNum - 1 + cfg.startFrac - ENTRY_BIAS, lapNum + cfg.endFrac + EXIT_BIAS];
       }
-      return [lapNum + cfg.startFrac, lapNum + cfg.endFrac];
+      return [lapNum + cfg.startFrac - ENTRY_BIAS, lapNum + cfg.endFrac + EXIT_BIAS];
     });
   });
   const rawProg={};
@@ -840,27 +842,32 @@ export default function F1App(){
       }
 
       // ── Pixel-space smoothing across pit↔track transitions ──
-      // If car just changed pit state OR if there's a sudden pixel jump,
-      // ease toward the target over a few frames instead of snapping.
+      // After a pit→track or track→pit transition, keep smoothing for a few
+      // frames so the car eases all the way to its target position rather than
+      // catching up in a single 32% step.
       const last=lastRenderRef.current[d.code];
       if(last){
         const dx=x-last.x, dy=y-last.y;
         const jumpDist=Math.hypot(dx,dy);
         const stateChanged = last.inPit !== isInPit;
-        // Apply pixel smoothing on state change OR any large jump (>14 SVG units)
-        if(stateChanged || jumpDist>14){
-          // Strong pull toward target — eases over ~6 frames at 60fps
-          const ease=0.32;
+        // Start a transition cooldown when state changes; decrement each frame
+        let cooldown = last.cooldown ?? 0;
+        if (stateChanged) cooldown = 14; // smooth over ~14 frames (~230ms at 60fps)
+        // Apply smoothing if in cooldown OR if there's any meaningful jump
+        if (cooldown > 0 || jumpDist > 6) {
+          const ease = 0.22; // gentler ease per frame
           x = last.x + dx*ease;
           y = last.y + dy*ease;
-          // Angle blending — handle 360° wrap
           let da = angle-last.angle;
           if(da>180) da-=360;
           if(da<-180) da+=360;
           angle = last.angle + da*ease;
+          cooldown = Math.max(0, cooldown - 1);
         }
+        lastRenderRef.current[d.code]={x,y,angle,inPit:isInPit,cooldown};
+      } else {
+        lastRenderRef.current[d.code]={x,y,angle,inPit:isInPit,cooldown:0};
       }
-      lastRenderRef.current[d.code]={x,y,angle,inPit:isInPit};
 
       out[d.code]={x,y,angle,isInPit};
       const rawPrev=frPrev.raw[d.code]||rawNow;

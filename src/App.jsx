@@ -195,6 +195,54 @@ function FastestLapToast({ event }) {
   );
 }
 
+function PitToast({ event }) {
+  const [visible, setVisible] = useState(false);
+  const [current, setCurrent] = useState(null);
+  const timerRef = useRef(null);
+
+  useEffect(() => {
+    if (!event) return;
+    setCurrent(event);
+    setVisible(true);
+    clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => setVisible(false), 3000);
+  }, [event]);
+
+  if (!current) return null;
+
+  return (
+    <div style={{
+      position: "fixed", top: 110, right: 20,
+      transform: `translateX(${visible ? 0 : 360}px)`,
+      transition: "transform 0.4s cubic-bezier(.4,0,.2,1), opacity 0.4s",
+      opacity: visible ? 1 : 0,
+      zIndex: 200, pointerEvents: "none",
+      background: "linear-gradient(135deg, #2a1500, #1a0a00)",
+      border: "1px solid #ff8c00",
+      borderRadius: 8, padding: "9px 18px",
+      display: "flex", alignItems: "center", gap: 12,
+      boxShadow: "0 0 25px #ff8c0050",
+      minWidth: 220,
+    }}>
+      <div style={{ fontSize: 14, color: "#ff8c00" }}>🛞</div>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: 7, letterSpacing: 3, color: "#ff8c00", marginBottom: 3, fontWeight: 700 }}>
+          PIT STOP — LAP {current.lap}
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ width: 3, height: 14, background: current.color, borderRadius: 2 }} />
+          <span style={{ fontSize: 10, color: current.color, fontWeight: 700, letterSpacing: 2 }}>
+            {current.code}
+          </span>
+          <span style={{ fontSize: 8, color: "#9a9eb8", letterSpacing: 1 }}>
+            entering pits
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── SESSIONS ─────────────────────────────────────────────────────────────────
 const SESSIONS = [
   { key:"british_2024_race", flag:"🇬🇧", name:"British GP",  year:2024, type:"Race", file:"/data/british_2024_race.json", circuit:"Silverstone" },
@@ -294,7 +342,7 @@ const MOCK_CORNER_LABELS=[["T1",510,248,"start"],["T2",572,72,"start"],["T3",618
 // Circuit-specific corner name lookups — add per circuit as needed
 // const TURN_NAMES_SILVERSTONE={1:"ABBEY",2:"FARM",...};
 
-function buildMock(){return{wp:MOCK_WP,tl:MOCK_TL,drivers:applyTeammateColors([...MOCK_DRIVERS]),steps:MOCK_STEPS,totalLaps:MOCK_LAPS,lapTimeS:MOCK_LAP_S,viewBox:"145 35 525 470",cornerLabels:MOCK_CORNER_LABELS,s1end:32,s2end:54,drs1:[20,24],drs2:[50,54],sessionName:"Select a session →",pitLanePath:[]};}
+function buildMock(){return{wp:MOCK_WP,tl:MOCK_TL,drivers:applyTeammateColors([...MOCK_DRIVERS]),steps:MOCK_STEPS,totalLaps:MOCK_LAPS,lapTimeS:MOCK_LAP_S,viewBox:"145 35 525 470",cornerLabels:MOCK_CORNER_LABELS,s1end:32,s2end:54,drs1:[20,24],drs2:[50,54],sessionName:"Select a session →",pitLanePath:generatePitLanePath(MOCK_WP,24)};}
 
 // ─── OFFICIAL 2026 TEAM COLORS + IDENTITY ─────────────────────────────────────
 // Canonical hex codes — overrides whatever FastF1 returns to ensure consistency.
@@ -368,10 +416,37 @@ function TeamBadge({ teamName, driverCode, size="md" }) {
   );
 }
 
-// ─── COLOR UTILITIES ──────────────────────────────────────────────────────────
-// F1 TV uses a darker shade for the second driver of each team so teammates
-// are visually distinguishable on track. Mix the base team color with black.
-function darkenHex(hex, amount=0.35) {
+// ─── PIT LANE GENERATION ──────────────────────────────────────────────────────
+// Builds a pit lane path parallel to the start/finish straight by taking the
+// first ~15% of track points and offsetting them perpendicular to the track
+// direction. Result is a thinner pit lane that visually parallels the main track.
+function generatePitLanePath(wp, offsetSVG = 22) {
+  if (!wp || wp.length < 10) return [];
+  const pitFraction = 0.18; // first 18% of the track
+  const pitEnd = Math.floor(wp.length * pitFraction);
+  const pts = wp.slice(0, pitEnd);
+  if (pts.length < 4) return [];
+
+  // Compute average track direction over the segment for a single perpendicular
+  const start = pts[0], end = pts[pts.length - 1];
+  const dx = end[0] - start[0], dy = end[1] - start[1];
+  const len = Math.hypot(dx, dy) || 1;
+  // Perpendicular: rotate 90° counter-clockwise — typically inside of circuit
+  const px = -dy / len, py = dx / len;
+
+  // Offset every point. Add tapered entry/exit ramps so pit lane visually
+  // joins the main track at start and end.
+  const result = [];
+  for (let i = 0; i < pts.length; i++) {
+    // Ramp in/out: first 15% and last 15% of pit segment fade offset toward 0
+    const tIn  = Math.min(1, i / (pts.length * 0.15));
+    const tOut = Math.min(1, (pts.length - 1 - i) / (pts.length * 0.15));
+    const taper = Math.min(tIn, tOut);
+    const o = offsetSVG * taper;
+    result.push([pts[i][0] + px * o, pts[i][1] + py * o]);
+  }
+  return result;
+}
   const m=hex.replace("#","").match(/.{2}/g);
   if(!m||m.length!==3) return hex;
   const [r,g,b]=m.map(h=>parseInt(h,16));
@@ -419,7 +494,9 @@ function processRealData(json){
         };
       })
   );
-  const pitLanePath=(track.pit_lane_points||[]).map(p=>[p[0],p[1]]);
+  // Pit lane: use backend-provided if present, otherwise auto-generate
+  const backendPitLane=(track.pit_lane_points||[]).map(p=>[p[0],p[1]]);
+  const pitLanePath = backendPitLane.length>=4 ? backendPitLane : generatePitLanePath(wp, 24);
   const rawProg={};
   drivers.forEach(d=>{
     const pos=race.positions[d.code];if(!pos)return;
@@ -507,6 +584,8 @@ export default function F1App(){
   const [loading,     setLoading   ]=useState(null);
   const [loadErr,     setLoadErr   ]=useState(null);
   const [fastestLapEv,setFastestLapEv]=useState(null); // for toast
+  const [pitEv,setPitEv]=useState(null); // pit entry toast
+  const pitToastRef=useRef({}); // {code: lastShownLap}
   const [strategyData, setStrategyData]=useState(null);
   const [strategyErr,  setStrategyErr ]=useState(null);
   const [strategyLoading, setStrategyLoading]=useState(false);
@@ -615,6 +694,23 @@ export default function F1App(){
       const posA=frA.pos[d.code];if(posA==null)continue;
       const rawNow=frA.raw[d.code]||0;
       const pitWin=d.pitWindows?.find(w=>rawNow>=w[0]-0.08&&rawNow<=w[1]+0.08);
+
+      // Pit entry detection — fire toast once per pit window per driver
+      if(pitWin){
+        const pitWinKey=`${pitWin[0].toFixed(2)}`;
+        const dmap2=driversMapRef.current;
+        if(pitToastRef.current[d.code]!==pitWinKey){
+          // Only fire when car is just entering (within first 20% of the window)
+          const pitFracCheck=(rawNow-pitWin[0])/(pitWin[1]-pitWin[0]);
+          if(pitFracCheck>=0&&pitFracCheck<0.2){
+            pitToastRef.current[d.code]=pitWinKey;
+            const drv=dmap2[d.code];
+            const pitLap=Math.floor(rawNow)+1;
+            setPitEv({code:d.code,lap:pitLap,color:drv?.color||"#ff8c00",ts:Date.now()});
+          }
+        }
+      }
+
       let x,y,angle;
       if(pitWin&&pitEl&&pitTotal>0){
         const pitFrac=Math.max(0,Math.min(1,(rawNow-pitWin[0])/(pitWin[1]-pitWin[0])));
@@ -658,7 +754,7 @@ export default function F1App(){
     else{if(stepR.current>=stepsR.current)stepR.current=0;playR.current=true;setPlaying(true);lastT.current=null;rafRef.current=requestAnimationFrame(loop);}
   },[loop]);
 
-  const clearAll=()=>{speedHistRef.current={};gapHistRef.current={};setSpeedHist({});setGapHist({});fastestRef.current={bestTime:Infinity,bestCode:null,bestLap:null};};
+  const clearAll=()=>{speedHistRef.current={};gapHistRef.current={};setSpeedHist({});setGapHist({});fastestRef.current={bestTime:Infinity,bestCode:null,bestLap:null};pitToastRef.current={};};
 
   const doRestart=useCallback(()=>{
     cancelAnimationFrame(rafRef.current);playR.current=false;setPlaying(false);lastT.current=null;
@@ -834,6 +930,7 @@ export default function F1App(){
 
       {/* Fastest lap toast */}
       <FastestLapToast event={fastestLapEv}/>
+      <PitToast event={pitEv}/>
 
       {/* ── NAV ───────────────────────────────────────────────────────── */}
       <header style={{display:"flex",alignItems:"center",flexShrink:0,borderBottom:"1px solid #1a1c28",background:"#0a0a0f"}}>
@@ -947,7 +1044,13 @@ export default function F1App(){
               {/* Ambient glow */}
               <path d={trackD} fill="none" stroke="#1a3acc" strokeWidth={32} strokeOpacity={0.04} style={{filter:"url(#trackGlow)"}}/>
               {/* Pit lane */}
-              {pitLaneD&&<><path d={pitLaneD} fill="none" stroke="#323540" strokeWidth={14} strokeLinecap="round"/><path d={pitLaneD} fill="none" stroke="#3c3f50" strokeWidth={10} strokeLinecap="round"/><path d={pitLaneD} fill="none" stroke="#464958" strokeWidth={1.5} strokeDasharray="4 6" strokeOpacity={0.6} strokeLinecap="round"/></>}
+              {/* Pit lane — parallel to S/F straight, white-edged */}
+              {pitLaneD&&<>
+                <path d={pitLaneD} fill="none" stroke="#ffffff" strokeWidth={9} strokeLinecap="round" strokeOpacity={0.7}/>
+                <path d={pitLaneD} fill="none" stroke="#1e2030" strokeWidth={7} strokeLinecap="round"/>
+                <path d={pitLaneD} fill="none" stroke="#252838" strokeWidth={5} strokeLinecap="round"/>
+                <path d={pitLaneD} fill="none" stroke="#ffffff" strokeWidth={0.6} strokeDasharray="3 5" strokeOpacity={0.45} strokeLinecap="round"/>
+              </>}
               {/* Track — white border lines give circuit shape, dark asphalt fill */}
               <path d={trackD} fill="none" stroke="#ffffff" strokeWidth={22} strokeLinecap="round" strokeLinejoin="round" strokeOpacity={0.9}/>
               <path d={trackD} fill="none" stroke="#1e2030" strokeWidth={18} strokeLinecap="round" strokeLinejoin="round"/>
@@ -969,11 +1072,79 @@ export default function F1App(){
               {tilt>5&&<rect x={vbX} y={vbY} width={vbW} height={vbH} fill="url(#depthGrad)" style={{pointerEvents:"none"}}/>}
               <path ref={pathRef} d={trackD} fill="none" stroke="none"/>
               <path ref={pitPathRef} d={pitLaneD||""} fill="none" stroke="none"/>
-              {/* S/F */}
-              <line x1={sfX-2} y1={sfY-14} x2={sfX-2} y2={sfY+10} stroke="#ffffff" strokeWidth={2} strokeOpacity={.6}/>
-              <text x={sfX+4} y={sfY+3} fill="#7a7d96" fontSize={5.5} fontFamily="'DM Mono',monospace">S/F</text>
+              {/* S/F start line — checkered pattern */}
+              {(()=>{
+                if(!wp[0]||!wp[1]) return null;
+                const dx=wp[1][0]-wp[0][0], dy=wp[1][1]-wp[0][1];
+                const len=Math.hypot(dx,dy)||1;
+                // Perpendicular vector (across track width)
+                const px=-dy/len, py=dx/len;
+                const halfW=8;
+                const x1=sfX+px*halfW, y1=sfY+py*halfW;
+                const x2=sfX-px*halfW, y2=sfY-py*halfW;
+                // Draw 6 checkered segments
+                const segs=[];
+                for(let i=0;i<6;i++){
+                  const t1=i/6, t2=(i+1)/6;
+                  const sx1=x1+(x2-x1)*t1, sy1=y1+(y2-y1)*t1;
+                  const sx2=x1+(x2-x1)*t2, sy2=y1+(y2-y1)*t2;
+                  segs.push(<line key={i} x1={sx1} y1={sy1} x2={sx2} y2={sy2}
+                    stroke={i%2===0?"#ffffff":"#000"} strokeWidth={3.5} strokeLinecap="butt" opacity={0.95}/>);
+                }
+                return<>
+                  {segs}
+                  <text x={sfX+px*halfW+px*5} y={sfY+py*halfW+py*5+2}
+                    fill="#ffffff" fontSize={5} fontFamily="'DM Mono',monospace"
+                    textAnchor="middle" opacity={0.7}>S/F</text>
+                </>;
+              })()}
+              {/* Corner kerbs — small red/white striped accent at each corner */}
+              {cornerLabels.map(([name,x,y])=>(
+                <g key={`kerb-${name}`}>
+                  <circle cx={x} cy={y+2} r={1.4} fill="#ff3333" opacity={0.4}/>
+                  <circle cx={x} cy={y+2} r={0.7} fill="#ffffff" opacity={0.6}/>
+                </g>
+              ))}
+
               {/* Corner labels — white */}
               {cornerLabels.map(([name,x,y,anchor])=>(<text key={name} x={x} y={y} fill="#ffffff" fontSize={5.5} textAnchor={anchor} fontFamily="'DM Mono',monospace" letterSpacing={.5} opacity={0.7}>{name}</text>))}
+
+              {/* Sector start signs — offset perpendicular to track direction */}
+              {(()=>{
+                if(!wp||wp.length<5) return null;
+                const sectorPoints=[
+                  {idx:0,           label:"S1", color:"#22c55e"},
+                  {idx:s1end,       label:"S2", color:"#a855f7"},
+                  {idx:s2end,       label:"S3", color:"#3b82f6"},
+                ];
+                return sectorPoints.map(({idx,label,color})=>{
+                  const pt=wp[idx]; if(!pt) return null;
+                  // Compute perpendicular offset using neighbouring points
+                  const a=wp[Math.max(0,idx-2)], b=wp[Math.min(wp.length-1,idx+2)];
+                  const dx=b[0]-a[0], dy=b[1]-a[1];
+                  const len=Math.hypot(dx,dy)||1;
+                  // Perpendicular: rotate 90° outward (CW relative to direction)
+                  const px=dy/len, py=-dx/len;
+                  const offset=18;
+                  const sx=pt[0]+px*offset, sy=pt[1]+py*offset;
+                  return(
+                    <g key={label}>
+                      {/* Connector line */}
+                      <line x1={pt[0]+px*5} y1={pt[1]+py*5} x2={sx} y2={sy}
+                        stroke={color} strokeWidth={0.6} strokeOpacity={0.5}/>
+                      {/* Sign background */}
+                      <rect x={sx-7} y={sy-4.5} width={14} height={9} rx={1.5}
+                        fill="#06070c" stroke={color} strokeWidth={0.7} strokeOpacity={0.85}/>
+                      {/* Sign label */}
+                      <text x={sx} y={sy+2.2} fill={color} fontSize={5.5}
+                        textAnchor="middle" fontWeight="700"
+                        fontFamily="'Orbitron',sans-serif" letterSpacing={1}>
+                        {label}
+                      </text>
+                    </g>
+                  );
+                });
+              })()}
               {/* Cars */}
               {drivers.map((d)=>{
                 const p=carPos[d.code];if(!p)return null;

@@ -6,8 +6,14 @@ function catmullPath(pts, closed = true) {
   const n = pts.length, T = 0.5 / 3;
   let d = `M${pts[0][0]},${pts[0][1]}`;
   const len = closed ? n : n - 1;
+  // Index helper: wrap on closed paths, clamp on open paths.
+  // Clamping on open paths prevents the spline from using the first/last
+  // points as phantom tangent neighbours, which causes endpoint overshoot tips.
+  const idx = closed
+    ? (i) => (i + n) % n
+    : (i) => Math.max(0, Math.min(n - 1, i));
   for (let i = 0; i < len; i++) {
-    const p0=pts[(i-1+n)%n],p1=pts[i],p2=pts[(i+1)%n],p3=pts[(i+2)%n];
+    const p0=pts[idx(i-1)],p1=pts[i],p2=pts[idx(i+1)],p3=pts[idx(i+2)];
     const c1x=(p1[0]+(p2[0]-p0[0])*T).toFixed(1),c1y=(p1[1]+(p2[1]-p0[1])*T).toFixed(1);
     const c2x=(p2[0]-(p3[0]-p1[0])*T).toFixed(1),c2y=(p2[1]-(p3[1]-p1[1])*T).toFixed(1);
     d+=` C${c1x},${c1y} ${c2x},${c2y} ${p2[0]},${p2[1]}`;
@@ -461,14 +467,24 @@ function generatePitLanePath(wp, circuitKey) {
   const px = sign * (-dy / len), py = sign * (dx / len);
   const offset = Math.abs(cfg.offset);
 
-  // Tapered ramps so pit lane visually joins main track at both ends
+  // Tapered ramps so pit lane visually joins main track at both ends.
+  // Per-side taper lengths can be set per circuit via cfg.rampInFrac / cfg.rampOutFrac
+  // (defaults: 0.15 each = 15% of the pit segment).
+  const rampInFrac  = cfg.rampInFrac  ?? 0.15;
+  const rampOutFrac = cfg.rampOutFrac ?? 0.15;
   const result = [];
   for (let i = 0; i < pts.length; i++) {
-    const tIn  = Math.min(1, i / (pts.length * 0.15));
-    const tOut = Math.min(1, (pts.length - 1 - i) / (pts.length * 0.15));
+    const tIn  = Math.min(1, i / (pts.length * rampInFrac));
+    const tOut = Math.min(1, (pts.length - 1 - i) / (pts.length * rampOutFrac));
     const taper = Math.min(tIn, tOut);
     const o = offset * taper;
     result.push([pts[i][0] + px * o, pts[i][1] + py * o]);
+  }
+  // Force the first and last points to land exactly on the track to prevent
+  // Catmull-Rom spline from overshooting at endpoints (the stray "tip" issue).
+  if (result.length > 0) {
+    result[0]               = [pts[0][0],               pts[0][1]];
+    result[result.length-1] = [pts[pts.length-1][0],   pts[pts.length-1][1]];
   }
   return result;
 }

@@ -591,7 +591,14 @@ function processRealData(json){
   drivers.forEach(d=>{
     const pos=race.positions[d.code];if(!pos)return;
     const raw=new Float64Array(pos.length);let laps=0;raw[0]=pos[0];
-    for(let i=1;i<pos.length;i++){if(pos[i]<pos[i-1]-0.5)laps++;raw[i]=laps+pos[i];}
+    // Stricter lap boundary: pos must clearly cross start/finish line
+    // (high → low). This prevents spurious lap increments from interpolation
+    // jitter, which was causing certain drivers (HAD, GAS, etc.) to falsely
+    // appear at P1 in early laps.
+    for(let i=1;i<pos.length;i++){
+      if(pos[i-1]>0.85 && pos[i]<0.15) laps++;
+      raw[i]=laps+pos[i];
+    }
     rawProg[d.code]=raw;
   });
   const steps=race.timeline_length-1,tl=[];

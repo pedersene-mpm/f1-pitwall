@@ -142,7 +142,7 @@ function TireBar({stints=[],currentLap=1,totalLaps=52}){
       const w=((st.end-st.start)/totalLaps)*100;
       const isActive=currentLap>=st.start&&currentLap<=st.end;
       return(<div key={i} style={{width:`${w}%`,background:C[st.compound]||"#888",opacity:isActive?1:0.4,position:"relative",boxShadow:isActive?`0 0 6px ${C[st.compound]||"#888"}`:undefined}}>
-        {w>8&&<span style={{position:"absolute",left:3,top:"50%",transform:"translateY(-50%)",fontSize:5,fontWeight:700,color:"#000"}}>{st.compound[0]}</span>}
+        {w>8&&<span style={{position:"absolute",left:3,top:"50%",transform:"translateY(-50%)",fontSize:5,fontWeight:700,color:"#000"}}>{st.compound==="UNKNOWN"?"?":st.compound[0]}</span>}
       </div>);
     })}
   </div>);
@@ -275,14 +275,14 @@ const CIRCUIT_INFO = {
 // ─── MOCK DATA ────────────────────────────────────────────────────────────────
 const MOCK_DRIVERS=[
   {code:"NOR",name:"Lando Norris",    team:"McLaren",        color:"#FF8000"},
-  {code:"HAM",name:"Lewis Hamilton",  team:"Mercedes",       color:"#27F4D2"},
+  {code:"PIA",name:"Oscar Piastri",   team:"McLaren",        color:"#FF8000"},
   {code:"LEC",name:"Charles Leclerc", team:"Ferrari",        color:"#E8002D"},
-  {code:"VER",name:"Max Verstappen",  team:"Red Bull Racing",color:"#3671C6"},
-  {code:"PIA",name:"Oscar Piastri",   team:"McLaren",        color:"#FF9F1C"},
-  {code:"RUS",name:"George Russell",  team:"Mercedes",       color:"#00C8BA"},
-  {code:"ALO",name:"Fernando Alonso", team:"Aston Martin",   color:"#358C75"},
-  {code:"SAI",name:"Carlos Sainz",    team:"Ferrari",        color:"#FF2D55"},
-  {code:"PER",name:"Sergio Perez",    team:"Red Bull Racing",color:"#1E50BE"},
+  {code:"HAM",name:"Lewis Hamilton",  team:"Ferrari",        color:"#E8002D"},
+  {code:"VER",name:"Max Verstappen",  team:"Red Bull",       color:"#3671C6"},
+  {code:"HAD",name:"Isack Hadjar",    team:"Red Bull",       color:"#3671C6"},
+  {code:"RUS",name:"George Russell",  team:"Mercedes",       color:"#27F4D2"},
+  {code:"ANT",name:"Kimi Antonelli",  team:"Mercedes",       color:"#27F4D2"},
+  {code:"ALO",name:"Fernando Alonso", team:"Aston Martin",   color:"#229971"},
   {code:"GAS",name:"Pierre Gasly",    team:"Alpine",         color:"#FF87BC"},
 ];
 const MOCK_WP=[[299.3,249.6],[346.6,254.2],[399.4,258.7],[452.3,263.2],[499.6,236.1],[527.4,186.3],[544.1,136.5],[555.2,100.3],[563.6,73.1],[569.1,55.0],[574.7,68.6],[588.6,91.2],[605.3,109.3],[619.2,118.4],[630.3,150.1],[622.0,181.7],[605.3,199.8],[577.5,213.4],[541.3,213.4],[485.7,208.9],[424.5,204.4],[360.5,199.8],[304.9,195.3],[249.2,195.3],[207.5,208.9],[185.2,245.1],[179.7,285.8],[182.5,326.6],[199.1,362.8],[229.7,380.9],[265.9,376.4],[288.2,349.2],[296.5,313.0],[290.9,281.3],[293.7,254.2],[302.1,222.5],[316.0,199.8],[329.9,199.8],[343.8,222.5],[349.4,249.6],[341.0,276.8],[327.1,299.4],[310.4,313.0],[296.5,326.6],[282.6,335.6],[274.3,344.7],[271.5,353.7],[277.0,367.3],[288.2,371.8],[307.6,376.4],[332.7,371.8],[374.4,362.8],[427.3,358.3],[477.3,353.7],[524.6,353.7],[558.0,371.8],[577.5,399.0],[583.0,430.7],[574.7,457.8],[558.0,480.5],[535.7,485.0],[519.1,471.4],[505.1,448.8],[482.9,421.6],[455.1,389.9],[421.7,358.3],[380.0,326.6],[341.0,299.4],[313.2,272.3]];
@@ -295,6 +295,78 @@ const MOCK_CORNER_LABELS=[["T1",510,248,"start"],["T2",572,72,"start"],["T3",618
 // const TURN_NAMES_SILVERSTONE={1:"ABBEY",2:"FARM",...};
 
 function buildMock(){return{wp:MOCK_WP,tl:MOCK_TL,drivers:applyTeammateColors([...MOCK_DRIVERS]),steps:MOCK_STEPS,totalLaps:MOCK_LAPS,lapTimeS:MOCK_LAP_S,viewBox:"145 35 525 470",cornerLabels:MOCK_CORNER_LABELS,s1end:32,s2end:54,drs1:[20,24],drs2:[50,54],sessionName:"Select a session →",pitLanePath:[]};}
+
+// ─── OFFICIAL 2026 TEAM COLORS + IDENTITY ─────────────────────────────────────
+// Canonical hex codes — overrides whatever FastF1 returns to ensure consistency.
+const TEAM_COLORS = {
+  "Red Bull":     { primary:"#3671C6", short:"RBR", full:"Red Bull Racing"      },
+  "Ferrari":      { primary:"#E8002D", short:"FER", full:"Scuderia Ferrari"     },
+  "McLaren":      { primary:"#FF8000", short:"MCL", full:"McLaren"              },
+  "Mercedes":     { primary:"#27F4D2", short:"MER", full:"Mercedes-AMG Petronas"},
+  "Aston Martin": { primary:"#229971", short:"AMR", full:"Aston Martin Aramco"  },
+  "Alpine":       { primary:"#FF87BC", short:"ALP", full:"Alpine"               },
+  "Williams":     { primary:"#1868DB", short:"WIL", full:"Williams"             },
+  "Haas":         { primary:"#B6BABD", short:"HAA", full:"Haas"                 },
+  "Audi":         { primary:"#52E252", short:"AUD", full:"Audi"                 },
+  "Sauber":       { primary:"#52E252", short:"AUD", full:"Audi (was Sauber)"    },
+  "Cadillac":     { primary:"#FFC72C", short:"CAD", full:"Cadillac"             },
+  "Racing Bulls": { primary:"#6692FF", short:"RB",  full:"Racing Bulls"         },
+  "RB":           { primary:"#6692FF", short:"RB",  full:"Racing Bulls"         },
+  "AlphaTauri":   { primary:"#6692FF", short:"RB",  full:"Racing Bulls"         },
+  "Alfa Romeo":   { primary:"#52E252", short:"AUD", full:"Audi (was Alfa Romeo)"},
+};
+
+// Driver → Team mapping for the 2026 grid (independent of FastF1 strings)
+const DRIVER_TO_TEAM = {
+  VER:"Red Bull",     HAD:"Red Bull",
+  LEC:"Ferrari",      HAM:"Ferrari",
+  NOR:"McLaren",      PIA:"McLaren",
+  RUS:"Mercedes",     ANT:"Mercedes",
+  ALO:"Aston Martin", STR:"Aston Martin",
+  HUL:"Audi",         BOR:"Audi",
+  PER:"Cadillac",     BOT:"Cadillac",
+  SAI:"Williams",     ALB:"Williams",
+  GAS:"Alpine",       COL:"Alpine",
+  OCO:"Haas",         BEA:"Haas",
+  LAW:"Racing Bulls", LIN:"Racing Bulls",
+  TSU:"Racing Bulls", MAG:"Haas",
+};
+
+function resolveTeam(teamName, driverCode) {
+  if (driverCode && DRIVER_TO_TEAM[driverCode] && TEAM_COLORS[DRIVER_TO_TEAM[driverCode]]) {
+    return { key: DRIVER_TO_TEAM[driverCode], ...TEAM_COLORS[DRIVER_TO_TEAM[driverCode]] };
+  }
+  if (!teamName) return null;
+  const t = teamName.toLowerCase();
+  for (const [key, info] of Object.entries(TEAM_COLORS)) {
+    if (t.includes(key.toLowerCase())) return { key, ...info };
+  }
+  return null;
+}
+
+function TeamBadge({ teamName, driverCode, size="md" }) {
+  const team = resolveTeam(teamName, driverCode);
+  if (!team) return null;
+  const dims = size==="lg" ? {h:36, font:13, pad:"0 14px"}
+              : size==="sm" ? {h:18, font:7,  pad:"0 7px"}
+                            : {h:24, font:9,  pad:"0 10px"};
+  return (
+    <div style={{
+      display:"inline-flex", alignItems:"center", gap:7,
+      height:dims.h, padding:dims.pad,
+      background:`${team.primary}15`,
+      border:`1px solid ${team.primary}66`,
+      borderRadius:4,
+    }}>
+      <div style={{ width:3, height:dims.h*0.6, background:team.primary, borderRadius:2,
+                    boxShadow:`0 0 6px ${team.primary}80` }}/>
+      <span style={{ fontSize:dims.font, fontWeight:700, color:team.primary,
+                     letterSpacing:1.5, fontFamily:"'Orbitron',sans-serif" }}>
+        {team.short}
+      </span>
+    </div>
+  );
+}
 
 // ─── COLOR UTILITIES ──────────────────────────────────────────────────────────
 // F1 TV uses a darker shade for the second driver of each team so teammates
@@ -334,8 +406,18 @@ function processRealData(json){
   const hasPosFor=new Set(Object.keys(race.positions));
   const drivers=applyTeammateColors(
     race.drivers.filter(d=>hasPosFor.has(d.code))
-      .map(d=>({code:d.code,name:d.name||d.code,team:d.team||"",color:d.color.startsWith("#")?d.color:"#"+d.color,
-                retiredAtStep:d.retired_at_step??null,pitLaps:d.pit_laps??[],pitWindows:d.pit_windows??[]}))
+      .map(d=>{
+        const team=resolveTeam(d.team,d.code);
+        return{
+          code:d.code,
+          name:d.name||d.code,
+          team:team?.full||d.team||"",
+          color:team?.primary||(d.color.startsWith("#")?d.color:"#"+d.color),
+          retiredAtStep:d.retired_at_step??null,
+          pitLaps:d.pit_laps??[],
+          pitWindows:d.pit_windows??[],
+        };
+      })
   );
   const pitLanePath=(track.pit_lane_points||[]).map(p=>[p[0],p[1]]);
   const rawProg={};
@@ -1166,11 +1248,11 @@ export default function F1App(){
                   <button onClick={()=>setView("race")} style={{background:"transparent",border:"1px solid #1a1d2e",borderRadius:4,color:"#555878",fontSize:10,cursor:"pointer",padding:"6px 10px",fontFamily:"'Orbitron',sans-serif",marginTop:4}}>←</button>
                   <div style={{width:4,height:60,background:d.color,borderRadius:2,boxShadow:`0 0 20px ${d.color}`,flexShrink:0,marginTop:4}}/>
                   <div style={{flex:1}}>
-                    <div style={{display:"flex",alignItems:"baseline",gap:12}}>
+                    <div style={{display:"flex",alignItems:"center",gap:14}}>
                       <div style={{fontSize:28,letterSpacing:3,color:d.color,fontWeight:900,lineHeight:1}}>{d.code}</div>
-                      <div style={{fontSize:8,color:"#555878",letterSpacing:2}}>#{d.number||"—"}</div>
+                      <TeamBadge teamName={d.team} driverCode={d.code} size="lg"/>
                     </div>
-                    <div style={{fontSize:10,color:"#9a9eb8",letterSpacing:2,marginTop:4}}>{d.name}</div>
+                    <div style={{fontSize:10,color:"#9a9eb8",letterSpacing:2,marginTop:8}}>{d.name}</div>
                     <div style={{fontSize:7,color:"#555878",letterSpacing:1,marginTop:2}}>{d.team}</div>
                     {info.nationality&&<div style={{fontSize:7,color:"#6b6e84",letterSpacing:1,marginTop:4}}>{info.nationality}</div>}
                     {info.birthplace&&<div style={{fontSize:6.5,color:"#44475e",letterSpacing:1,marginTop:2}}>{info.birthplace}{age?` · Age ${age}`:""}</div>}
@@ -1332,10 +1414,14 @@ export default function F1App(){
               <div style={{fontSize:5.5,color:"#555878",letterSpacing:2,marginBottom:8}}>{label}</div>
               <div style={{display:"flex",alignItems:"center",gap:10}}>
                 <div style={{width:3,height:32,background:color,borderRadius:2,boxShadow:`0 0 8px ${color}60`}}/>
-                <div>
-                  <div style={{fontSize:13,color:color,fontFamily:"'DM Mono',monospace",fontWeight:700}}>{time||driver}</div>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:13,color:color,fontFamily:"'DM Mono',monospace",fontWeight:700,
+                    overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>{time||driver}</div>
                   <div style={{fontSize:8,color:"#9a9eb8",marginTop:3,letterSpacing:1}}>{driver}{year?` · ${year}`:""}</div>
-                  {team&&<div style={{fontSize:6.5,color:"#555878",marginTop:2}}>{team}</div>}
+                  {team&&<div style={{display:"flex",alignItems:"center",gap:6,marginTop:5}}>
+                    <TeamBadge teamName={team} size="sm"/>
+                    <span style={{fontSize:6.5,color:"#555878"}}>{team}</span>
+                  </div>}
                 </div>
               </div>
             </div>
@@ -1490,19 +1576,19 @@ export default function F1App(){
                     <div style={{fontSize:6,color:"#444660",marginTop:3,letterSpacing:1}}>{sd.summary.min_pit_count}–{sd.summary.max_pit_count} stops range</div>
                   </div>
                   <div style={{padding:14,background:"#0e0e18",borderRadius:8,border:"1px solid #1a1c28"}}>
-                    <div style={{fontSize:6,color:"#555878",letterSpacing:2,marginBottom:6}}>FASTEST COMPOUND</div>
+                    <div style={{fontSize:6,color:"#555878",letterSpacing:2,marginBottom:6}}>LONGEST STINTS ON</div>
                     {(()=>{
                       const pa=sd.compound_pace_aggregate||{};
-                      const sorted=Object.entries(pa).sort((a,b)=>a[1].avg_median_s-b[1].avg_median_s);
-                      const fastest=sorted[0];
-                      if(!fastest) return <div style={{fontSize:9,color:"#555878"}}>—</div>;
-                      const c=COMPOUND_COLORS[fastest[0]]||"#666";
+                      const sorted=Object.entries(pa).filter(([_,d])=>d.avg_stint_laps).sort((a,b)=>b[1].avg_stint_laps-a[1].avg_stint_laps);
+                      const top=sorted[0];
+                      if(!top) return <div style={{fontSize:9,color:"#555878"}}>—</div>;
+                      const c=COMPOUND_COLORS[top[0]]||"#666";
                       return(
                         <div style={{display:"flex",alignItems:"center",gap:6}}>
                           <div style={{width:14,height:14,borderRadius:"50%",background:c,boxShadow:`0 0 8px ${c}80`}}/>
                           <div>
-                            <div style={{fontSize:13,color:c,fontFamily:"'DM Mono',monospace",fontWeight:700}}>{fastest[0]}</div>
-                            <div style={{fontSize:7,color:"#444660",fontFamily:"'DM Mono',monospace"}}>{fastest[1].avg_median_s.toFixed(2)}s avg</div>
+                            <div style={{fontSize:13,color:c,fontFamily:"'DM Mono',monospace",fontWeight:700}}>{top[0]}</div>
+                            <div style={{fontSize:7,color:"#444660",fontFamily:"'DM Mono',monospace"}}>{top[1].avg_stint_laps} laps avg</div>
                           </div>
                         </div>
                       );
@@ -1523,23 +1609,37 @@ export default function F1App(){
                   </div>
                 </div>
 
-                {/* Compound pace breakdown */}
+                {/* Tire duration breakdown */}
                 <div style={{padding:18,background:"#0e0e18",borderRadius:8,border:"1px solid #1a1c28"}}>
-                  <div style={{fontSize:8,letterSpacing:3,color:"#555878",marginBottom:14}}>COMPOUND PACE — AVERAGE MEDIAN LAP TIME</div>
+                  <div style={{fontSize:8,letterSpacing:3,color:"#555878",marginBottom:6}}>EXPECTED TIRE DURATION</div>
+                  <div style={{fontSize:7,color:"#444660",letterSpacing:1,marginBottom:14}}>
+                    Average stint length per compound across the analysed races.
+                  </div>
                   <div style={{display:"flex",gap:14}}>
-                    {Object.entries(sd.compound_pace_aggregate||{}).map(([compound,data])=>{
-                      const c=COMPOUND_COLORS[compound]||"#666";
-                      return(
-                        <div key={compound} style={{flex:1,padding:12,background:"#06070c",borderRadius:6,border:`1px solid ${c}30`}}>
-                          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
-                            <div style={{width:10,height:10,borderRadius:"50%",background:c}}/>
-                            <span style={{fontSize:9,color:c,fontWeight:700,letterSpacing:1}}>{compound}</span>
+                    {Object.entries(sd.compound_pace_aggregate||{})
+                      .filter(([_,data])=>data.avg_stint_laps)
+                      .sort((a,b)=>a[1].avg_stint_laps-b[1].avg_stint_laps)
+                      .map(([compound,data])=>{
+                        const c=COMPOUND_COLORS[compound]||"#666";
+                        return(
+                          <div key={compound} style={{flex:1,padding:14,background:"#06070c",borderRadius:6,border:`1px solid ${c}30`}}>
+                            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+                              <div style={{width:10,height:10,borderRadius:"50%",background:c}}/>
+                              <span style={{fontSize:10,color:c,fontWeight:700,letterSpacing:1}}>{compound}</span>
+                            </div>
+                            <div style={{display:"flex",alignItems:"baseline",gap:4}}>
+                              <span style={{fontSize:22,color:"#d0d2de",fontFamily:"'DM Mono',monospace",fontWeight:700}}>{data.avg_stint_laps}</span>
+                              <span style={{fontSize:9,color:"#9a9eb8",letterSpacing:1}}>LAPS AVG</span>
+                            </div>
+                            <div style={{fontSize:6.5,color:"#444660",letterSpacing:1,marginTop:6,fontFamily:"'DM Mono',monospace"}}>
+                              {data.min_stint_laps}–{data.max_stint_laps} laps · {data.stint_count} stints
+                            </div>
+                            <div style={{height:1,background:"#1a1c28",margin:"8px 0"}}/>
+                            <div style={{fontSize:6,color:"#555878",letterSpacing:1,marginBottom:2}}>AVG LAP PACE</div>
+                            <div style={{fontSize:9,color:"#9a9eb8",fontFamily:"'DM Mono',monospace"}}>{data.avg_median_s.toFixed(2)}s</div>
                           </div>
-                          <div style={{fontSize:18,color:"#d0d2de",fontFamily:"'DM Mono',monospace",fontWeight:700}}>{data.avg_median_s.toFixed(2)}<span style={{fontSize:9,color:"#555878"}}>s</span></div>
-                          <div style={{fontSize:6,color:"#444660",letterSpacing:1,marginTop:4}}>{data.samples} laps sampled</div>
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
                   </div>
                 </div>
 
@@ -1562,12 +1662,17 @@ export default function F1App(){
 
                     {/* Drivers strategies */}
                     <div style={{display:"flex",flexDirection:"column",gap:6}}>
-                      {race.drivers.slice(0,10).map(driver=>(
+                      {race.drivers.slice(0,10).map(driver=>{
+                        const team=resolveTeam(driver.team,driver.code);
+                        const dCol=team?.primary||"#9a9eb8";
+                        return(
                         <div key={driver.code} style={{display:"flex",alignItems:"center",gap:10,padding:"6px 4px"}}>
                           <span style={{fontFamily:"'DM Mono',monospace",fontSize:11,fontWeight:700,
                             color:driver.position===1?"#FFD700":driver.position<=3?"#9a9eb8":"#555878",
                             width:24,textAlign:"center"}}>P{driver.position}</span>
-                          <span style={{fontSize:9,fontWeight:600,color:"#9a9eb8",letterSpacing:1,width:36}}>{driver.code}</span>
+                          <div style={{width:2,height:18,background:dCol,borderRadius:1}}/>
+                          <span style={{fontSize:9,fontWeight:700,color:dCol,letterSpacing:1,width:38}}>{driver.code}</span>
+                          <TeamBadge teamName={driver.team} driverCode={driver.code} size="sm"/>
                           {/* Stint visualization bar */}
                           <div style={{flex:1,display:"flex",height:14,borderRadius:3,overflow:"hidden",gap:1,background:"#06070c"}}>
                             {driver.stints.map((stint,i)=>{
@@ -1578,7 +1683,7 @@ export default function F1App(){
                                   width:`${widthPct}%`,background:color,
                                   display:"flex",alignItems:"center",justifyContent:"center",
                                 }}>
-                                  {widthPct>5&&<span style={{fontSize:7,fontWeight:700,color:"#000"}}>{stint.compound[0]}{stint.laps}</span>}
+                                  {widthPct>5&&<span style={{fontSize:7,fontWeight:700,color:"#000"}}>{stint.compound==="UNKNOWN"?"?":stint.compound[0]}{stint.laps}</span>}
                                 </div>
                               );
                             })}
@@ -1590,7 +1695,7 @@ export default function F1App(){
                             {driver.avg_pit_s}s avg
                           </span>}
                         </div>
-                      ))}
+                      );})}
                     </div>
                   </div>
                 ))}

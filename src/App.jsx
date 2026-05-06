@@ -425,6 +425,9 @@ export default function F1App(){
   const [loading,     setLoading   ]=useState(null);
   const [loadErr,     setLoadErr   ]=useState(null);
   const [fastestLapEv,setFastestLapEv]=useState(null); // for toast
+  const [strategyData, setStrategyData]=useState(null);
+  const [strategyErr,  setStrategyErr ]=useState(null);
+  const [strategyLoading, setStrategyLoading]=useState(false);
 
   const{wp,tl,drivers,steps,totalLaps,lapTimeS,viewBox,cornerLabels,
         s1end,s2end,drs1,drs2,sessionName,pitLanePath,lapTimes={}}=dataset;
@@ -460,6 +463,26 @@ export default function F1App(){
     document.head.appendChild(s);
     return()=>{document.head.removeChild(l);document.head.removeChild(s);};
   },[]);
+
+  // Load strategy data when the loaded session's circuit changes
+  useEffect(()=>{
+    if(dataMode==="SELECT")return;
+    const sessionLower=(dataset.sessionName||"").toLowerCase();
+    let slug=null;
+    if(sessionLower.includes("british")||sessionLower.includes("silverstone")) slug="british";
+    else if(sessionLower.includes("monaco")) slug="monaco";
+    else if(sessionLower.includes("miami")) slug="miami";
+    else if(sessionLower.includes("canadian")||sessionLower.includes("canada")) slug="canadian";
+    if(!slug)return;
+    setStrategyLoading(true);setStrategyErr(null);setStrategyData(null);
+    fetch(`/data/strategy/${slug}_strategy.json`)
+      .then(r=>{
+        if(!r.ok)throw new Error(`Strategy data not found (${r.status}). Run fastf1_strategy.py for ${slug}.`);
+        return r.json();
+      })
+      .then(data=>{setStrategyData(data);setStrategyLoading(false);})
+      .catch(err=>{setStrategyErr(err.message);setStrategyLoading(false);});
+  },[dataset,dataMode]);
 
   const trackD  =useMemo(()=>catmullPath(wp),[wp]);
   const pitLaneD=useMemo(()=>catmullPath(pitLanePath,false),[pitLanePath]);
@@ -719,7 +742,7 @@ export default function F1App(){
   const sfX=wp[0]?.[0]||300,sfY=wp[0]?.[1]||250;
   const[vbX,vbY,vbW,vbH]=viewBox.split(" ").map(Number);
   const lapLabel=(mult)=>{const s=Math.round(lapTimeS/mult);return s>=60?`${Math.floor(s/60)}m${s%60>0?String(s%60).padStart(2,"0")+"s":""}`:s+"s";};
-  const NAV=[{id:"sessions",label:"SESSIONS"},{id:"race",label:"RACE MAP"},{id:"driver",label:"DRIVER"},{id:"circuit",label:"CIRCUIT"}];
+  const NAV=[{id:"sessions",label:"SESSIONS"},{id:"race",label:"RACE MAP"},{id:"driver",label:"DRIVER"},{id:"circuit",label:"CIRCUIT"},{id:"strategy",label:"STRATEGY"}];
   const modeColor={"SELECT":"#333860","DATA":"#4CAF50","LIVE":"#ff4444"}[dataMode]||"#333860";
   const modeBg  ={"SELECT":"#0e0e22","DATA":"#0e2a0e","LIVE":"#2a0a0a"}[dataMode]||"#0e0e22";
   const modeText={"SELECT":"◌ SELECT SESSION","DATA":"◉ DATA","LIVE":"◉ LIVE"}[dataMode]||"◌";
@@ -1394,6 +1417,212 @@ export default function F1App(){
                 {/* Add more circuits note */}
                 <div style={{padding:14,borderRadius:6,background:"#090910",border:"1px solid #1a1c28",fontSize:7,color:"#333550",lineHeight:1.8,fontFamily:"'DM Mono',monospace"}}>
                   Add more circuits: update CIRCUIT_INFO in App.jsx and add a matching key in SESSIONS.
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* ─── STRATEGY VIEW ──────────────────────────────────────────── */}
+        {view==="strategy"&&(()=>{
+          if(dataMode==="SELECT") return(
+            <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:12}}>
+              <div style={{fontSize:10,letterSpacing:4,color:"#252840"}}>NO SESSION LOADED</div>
+              <div style={{fontSize:7,color:"#1a1d2e",letterSpacing:2}}>SELECT A SESSION TO SEE STRATEGY HISTORY</div>
+              <button onClick={()=>setView("sessions")} style={{marginTop:8,padding:"8px 20px",background:"transparent",border:"1px solid #1a1d2e",borderRadius:4,color:"#252840",fontSize:8,letterSpacing:2,cursor:"pointer",fontFamily:"'Orbitron',sans-serif"}}>← SESSIONS</button>
+            </div>
+          );
+
+          if(strategyLoading) return(
+            <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center"}}>
+              <div style={{fontSize:9,letterSpacing:3,color:"#555878"}}>LOADING STRATEGY DATA…</div>
+            </div>
+          );
+
+          if(strategyErr||!strategyData) return(
+            <div style={{flex:1,overflowY:"auto",padding:32}}>
+              <div style={{maxWidth:560,margin:"0 auto"}}>
+                <div style={{fontSize:9,letterSpacing:4,color:"#E10600",marginBottom:8}}>STRATEGY CENTER</div>
+                <div style={{fontSize:7,color:"#555878",letterSpacing:2,marginBottom:24}}>Historical strategy data for this circuit not yet generated.</div>
+                <div style={{padding:20,borderRadius:8,background:"#0e0e18",border:"1px solid #1a1c28",marginBottom:14}}>
+                  <div style={{fontSize:8,letterSpacing:3,color:"#555878",marginBottom:12}}>RUN BACKEND</div>
+                  <div style={{fontSize:8,color:"#9a9eb8",lineHeight:1.9,fontFamily:"'DM Mono',monospace"}}>
+                    cd ~/Desktop<br/>
+                    python3 fastf1_strategy.py --event "Canadian Grand Prix"<br/>
+                    python3 fastf1_strategy.py --event "British Grand Prix"<br/>
+                    python3 fastf1_strategy.py --event "Miami Grand Prix"
+                  </div>
+                  <div style={{fontSize:6.5,color:"#444660",marginTop:12,letterSpacing:1}}>
+                    Outputs JSON to public/data/strategy/. Pulls last 3 dry races at the circuit, ignoring wet ones automatically.
+                  </div>
+                </div>
+                {strategyErr&&<div style={{padding:10,borderRadius:4,background:"#2a0a0a",border:"1px solid #3a1010",fontSize:7,color:"#ff6b6b",letterSpacing:1}}>⚠ {strategyErr}</div>}
+              </div>
+            </div>
+          );
+
+          // Strategy data is loaded — render it
+          const COMPOUND_COLORS={SOFT:"#ff4444",MEDIUM:"#FFD700",HARD:"#d8d8d8",INTERMEDIATE:"#00ff88",WET:"#4488ff",UNKNOWN:"#666"};
+          const sd=strategyData;
+
+          return(
+            <div style={{flex:1,overflowY:"auto",padding:24}}>
+              <div style={{maxWidth:980,margin:"0 auto",display:"flex",flexDirection:"column",gap:20}}>
+
+                {/* Header */}
+                <div style={{paddingBottom:14,borderBottom:"1px solid #1a1c28"}}>
+                  <div style={{fontSize:9,letterSpacing:4,color:"#E10600",marginBottom:6}}>STRATEGY CENTER</div>
+                  <div style={{fontSize:18,letterSpacing:2,color:"#d0d2de",fontWeight:700}}>{sd.event}</div>
+                  <div style={{fontSize:8,color:"#555878",letterSpacing:1,marginTop:4}}>
+                    Historical analysis · {sd.years.join(" · ")} · Wet races excluded
+                  </div>
+                </div>
+
+                {/* Summary insights */}
+                <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12}}>
+                  <div style={{padding:14,background:"#0e0e18",borderRadius:8,border:"1px solid #1a1c28"}}>
+                    <div style={{fontSize:6,color:"#555878",letterSpacing:2,marginBottom:6}}>RACES ANALYSED</div>
+                    <div style={{fontSize:20,color:"#d0d2de",fontFamily:"'DM Mono',monospace",fontWeight:700}}>{sd.races.length}</div>
+                  </div>
+                  <div style={{padding:14,background:"#0e0e18",borderRadius:8,border:"1px solid #1a1c28"}}>
+                    <div style={{fontSize:6,color:"#555878",letterSpacing:2,marginBottom:6}}>AVG PIT STOPS</div>
+                    <div style={{fontSize:20,color:"#d0d2de",fontFamily:"'DM Mono',monospace",fontWeight:700}}>{sd.summary.avg_pit_count?.toFixed(1)}</div>
+                    <div style={{fontSize:6,color:"#444660",marginTop:3,letterSpacing:1}}>{sd.summary.min_pit_count}–{sd.summary.max_pit_count} stops range</div>
+                  </div>
+                  <div style={{padding:14,background:"#0e0e18",borderRadius:8,border:"1px solid #1a1c28"}}>
+                    <div style={{fontSize:6,color:"#555878",letterSpacing:2,marginBottom:6}}>FASTEST COMPOUND</div>
+                    {(()=>{
+                      const pa=sd.compound_pace_aggregate||{};
+                      const sorted=Object.entries(pa).sort((a,b)=>a[1].avg_median_s-b[1].avg_median_s);
+                      const fastest=sorted[0];
+                      if(!fastest) return <div style={{fontSize:9,color:"#555878"}}>—</div>;
+                      const c=COMPOUND_COLORS[fastest[0]]||"#666";
+                      return(
+                        <div style={{display:"flex",alignItems:"center",gap:6}}>
+                          <div style={{width:14,height:14,borderRadius:"50%",background:c,boxShadow:`0 0 8px ${c}80`}}/>
+                          <div>
+                            <div style={{fontSize:13,color:c,fontFamily:"'DM Mono',monospace",fontWeight:700}}>{fastest[0]}</div>
+                            <div style={{fontSize:7,color:"#444660",fontFamily:"'DM Mono',monospace"}}>{fastest[1].avg_median_s.toFixed(2)}s avg</div>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                  <div style={{padding:14,background:"#0e0e18",borderRadius:8,border:"1px solid #1a1c28"}}>
+                    <div style={{fontSize:6,color:"#555878",letterSpacing:2,marginBottom:6}}>MOST COMMON STRAT</div>
+                    {(()=>{
+                      const top=sd.summary.common_strategies?.[0];
+                      if(!top) return <div style={{fontSize:9,color:"#555878"}}>—</div>;
+                      return(
+                        <>
+                          <div style={{fontSize:11,color:"#d0d2de",fontFamily:"'DM Mono',monospace",fontWeight:700}}>{top[0].split(" → ").map(c=>c[0]).join("→")}</div>
+                          <div style={{fontSize:6.5,color:"#444660",marginTop:3,letterSpacing:1}}>used {top[1]} times</div>
+                        </>
+                      );
+                    })()}
+                  </div>
+                </div>
+
+                {/* Compound pace breakdown */}
+                <div style={{padding:18,background:"#0e0e18",borderRadius:8,border:"1px solid #1a1c28"}}>
+                  <div style={{fontSize:8,letterSpacing:3,color:"#555878",marginBottom:14}}>COMPOUND PACE — AVERAGE MEDIAN LAP TIME</div>
+                  <div style={{display:"flex",gap:14}}>
+                    {Object.entries(sd.compound_pace_aggregate||{}).map(([compound,data])=>{
+                      const c=COMPOUND_COLORS[compound]||"#666";
+                      return(
+                        <div key={compound} style={{flex:1,padding:12,background:"#06070c",borderRadius:6,border:`1px solid ${c}30`}}>
+                          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+                            <div style={{width:10,height:10,borderRadius:"50%",background:c}}/>
+                            <span style={{fontSize:9,color:c,fontWeight:700,letterSpacing:1}}>{compound}</span>
+                          </div>
+                          <div style={{fontSize:18,color:"#d0d2de",fontFamily:"'DM Mono',monospace",fontWeight:700}}>{data.avg_median_s.toFixed(2)}<span style={{fontSize:9,color:"#555878"}}>s</span></div>
+                          <div style={{fontSize:6,color:"#444660",letterSpacing:1,marginTop:4}}>{data.samples} laps sampled</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Per-race breakdown */}
+                {sd.races.map(race=>(
+                  <div key={race.year} style={{padding:18,background:"#0e0e18",borderRadius:8,border:"1px solid #1a1c28"}}>
+                    <div style={{display:"flex",alignItems:"baseline",justifyContent:"space-between",marginBottom:14,paddingBottom:10,borderBottom:"1px solid #1a1c28"}}>
+                      <div>
+                        <div style={{fontSize:14,color:"#d0d2de",letterSpacing:2,fontWeight:700}}>{race.year} · {race.event}</div>
+                        <div style={{fontSize:7,color:"#555878",letterSpacing:1,marginTop:3}}>{race.total_laps} laps</div>
+                      </div>
+                      {race.weather&&(
+                        <div style={{display:"flex",gap:14}}>
+                          {race.weather.air_temp_c&&<div><div style={{fontSize:5,color:"#444660",letterSpacing:1}}>AIR</div><div style={{fontSize:9,color:"#9a9eb8",fontFamily:"'DM Mono',monospace"}}>{race.weather.air_temp_c}°C</div></div>}
+                          {race.weather.track_temp_c&&<div><div style={{fontSize:5,color:"#444660",letterSpacing:1}}>TRACK</div><div style={{fontSize:9,color:"#9a9eb8",fontFamily:"'DM Mono',monospace"}}>{race.weather.track_temp_c}°C</div></div>}
+                          {race.weather.humidity_pct&&<div><div style={{fontSize:5,color:"#444660",letterSpacing:1}}>HUM</div><div style={{fontSize:9,color:"#9a9eb8",fontFamily:"'DM Mono',monospace"}}>{race.weather.humidity_pct}%</div></div>}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Drivers strategies */}
+                    <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                      {race.drivers.slice(0,10).map(driver=>(
+                        <div key={driver.code} style={{display:"flex",alignItems:"center",gap:10,padding:"6px 4px"}}>
+                          <span style={{fontFamily:"'DM Mono',monospace",fontSize:11,fontWeight:700,
+                            color:driver.position===1?"#FFD700":driver.position<=3?"#9a9eb8":"#555878",
+                            width:24,textAlign:"center"}}>P{driver.position}</span>
+                          <span style={{fontSize:9,fontWeight:600,color:"#9a9eb8",letterSpacing:1,width:36}}>{driver.code}</span>
+                          {/* Stint visualization bar */}
+                          <div style={{flex:1,display:"flex",height:14,borderRadius:3,overflow:"hidden",gap:1,background:"#06070c"}}>
+                            {driver.stints.map((stint,i)=>{
+                              const widthPct=(stint.laps/race.total_laps)*100;
+                              const color=COMPOUND_COLORS[stint.compound]||"#666";
+                              return(
+                                <div key={i} title={`${stint.compound} L${stint.start}-${stint.end}`} style={{
+                                  width:`${widthPct}%`,background:color,
+                                  display:"flex",alignItems:"center",justifyContent:"center",
+                                }}>
+                                  {widthPct>5&&<span style={{fontSize:7,fontWeight:700,color:"#000"}}>{stint.compound[0]}{stint.laps}</span>}
+                                </div>
+                              );
+                            })}
+                          </div>
+                          <span style={{fontFamily:"'DM Mono',monospace",fontSize:7,color:"#444660",width:60,textAlign:"right"}}>
+                            {driver.pit_count} stop{driver.pit_count!==1?"s":""}
+                          </span>
+                          {driver.avg_pit_s&&<span style={{fontFamily:"'DM Mono',monospace",fontSize:7,color:"#9a9eb8",width:50,textAlign:"right"}}>
+                            {driver.avg_pit_s}s avg
+                          </span>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+
+                {/* Common strategies list */}
+                <div style={{padding:18,background:"#0e0e18",borderRadius:8,border:"1px solid #1a1c28"}}>
+                  <div style={{fontSize:8,letterSpacing:3,color:"#555878",marginBottom:14}}>MOST COMMON STRATEGIES</div>
+                  {sd.summary.common_strategies?.map(([strat,count])=>(
+                    <div key={strat} style={{display:"flex",alignItems:"center",gap:14,padding:"6px 0"}}>
+                      <div style={{flex:1,display:"flex",gap:4}}>
+                        {strat.split(" → ").map((compound,i)=>{
+                          const c=COMPOUND_COLORS[compound]||"#666";
+                          return(
+                            <div key={i} style={{display:"flex",alignItems:"center",gap:5}}>
+                              {i>0&&<span style={{fontSize:8,color:"#444660"}}>→</span>}
+                              <span style={{fontSize:9,fontWeight:700,padding:"2px 8px",borderRadius:3,
+                                background:c+"22",color:c,border:`1px solid ${c}55`,
+                                fontFamily:"'DM Mono',monospace",letterSpacing:1}}>
+                                {compound}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <span style={{fontFamily:"'DM Mono',monospace",fontSize:9,color:"#9a9eb8"}}>×{count}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Footer note */}
+                <div style={{padding:12,fontSize:6.5,color:"#333550",letterSpacing:1,fontFamily:"'DM Mono',monospace",textAlign:"center"}}>
+                  Strategy data refreshed each time fastf1_strategy.py is run for this circuit.
                 </div>
               </div>
             </div>

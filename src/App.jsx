@@ -342,7 +342,7 @@ const MOCK_CORNER_LABELS=[["T1",510,248,"start"],["T2",572,72,"start"],["T3",618
 // Circuit-specific corner name lookups — add per circuit as needed
 // const TURN_NAMES_SILVERSTONE={1:"ABBEY",2:"FARM",...};
 
-function buildMock(){return{wp:MOCK_WP,tl:MOCK_TL,drivers:applyTeammateColors([...MOCK_DRIVERS]),steps:MOCK_STEPS,totalLaps:MOCK_LAPS,lapTimeS:MOCK_LAP_S,viewBox:"145 35 525 470",cornerLabels:MOCK_CORNER_LABELS,s1end:32,s2end:54,drs1:[20,24],drs2:[50,54],sessionName:"Select a session →",pitLanePath:generatePitLanePath(MOCK_WP,24)};}
+function buildMock(){return{wp:MOCK_WP,tl:MOCK_TL,drivers:applyTeammateColors([...MOCK_DRIVERS]),steps:MOCK_STEPS,totalLaps:MOCK_LAPS,lapTimeS:MOCK_LAP_S,viewBox:"145 35 525 470",cornerLabels:MOCK_CORNER_LABELS,s1end:32,s2end:54,drs1:[20,24],drs2:[50,54],sessionName:"Select a session →",pitLanePath:generatePitLanePath(MOCK_WP,"Silverstone")};}
 
 // ─── OFFICIAL 2026 TEAM COLORS + IDENTITY ─────────────────────────────────────
 // Canonical hex codes — overrides whatever FastF1 returns to ensure consistency.
@@ -416,36 +416,71 @@ function TeamBadge({ teamName, driverCode, size="md" }) {
   );
 }
 
-// ─── PIT LANE GENERATION ──────────────────────────────────────────────────────
-// Builds a pit lane path parallel to the start/finish straight by taking the
-// first ~15% of track points and offsetting them perpendicular to the track
-// direction. Result is a thinner pit lane that visually parallels the main track.
-function generatePitLanePath(wp, offsetSVG = 22) {
+// ─── PIT LANE — PER CIRCUIT ───────────────────────────────────────────────────
+// Each circuit has a specific pit lane location relative to its start/finish.
+// We define which range of track waypoints to mirror, the perpendicular offset
+// distance in SVG units, and which side (positive = clockwise from track direction,
+// negative = counter-clockwise). Tune visually until it looks right.
+//
+// To add a new circuit:
+//   1. Identify which fraction of the lap the pit lane covers (e.g. 0.0–0.18)
+//   2. Try offset 24 first; flip to -24 if it ends up on the wrong side
+//   3. Reload and adjust
+const CIRCUIT_PIT_LANE = {
+  Silverstone: { startFrac: 0.00, endFrac: 0.18, offset:  24 },
+  Monaco:      { startFrac: 0.95, endFrac: 0.10, offset: -16, wrap: true }, // pit before S/F
+  Miami:       { startFrac: 0.00, endFrac: 0.15, offset:  28 },
+  Canada:      { startFrac: 0.92, endFrac: 0.08, offset:  22, wrap: true },
+};
+
+function generatePitLanePath(wp, circuitKey) {
   if (!wp || wp.length < 10) return [];
-  const pitFraction = 0.18; // first 18% of the track
-  const pitEnd = Math.floor(wp.length * pitFraction);
-  const pts = wp.slice(0, pitEnd);
+  const cfg = CIRCUIT_PIT_LANE[circuitKey];
+  if (!cfg) return []; // no pit lane defined for this circuit yet
+
+  const n = wp.length;
+  let pts;
+  if (cfg.wrap) {
+    // Pit lane wraps around start/finish line
+    const startIdx = Math.floor(n * cfg.startFrac);
+    const endIdx   = Math.floor(n * cfg.endFrac);
+    pts = [...wp.slice(startIdx), ...wp.slice(0, endIdx + 1)];
+  } else {
+    const startIdx = Math.floor(n * cfg.startFrac);
+    const endIdx   = Math.floor(n * cfg.endFrac);
+    pts = wp.slice(startIdx, endIdx + 1);
+  }
   if (pts.length < 4) return [];
 
-  // Compute average track direction over the segment for a single perpendicular
+  // Compute average track direction over the segment
   const start = pts[0], end = pts[pts.length - 1];
   const dx = end[0] - start[0], dy = end[1] - start[1];
   const len = Math.hypot(dx, dy) || 1;
-  // Perpendicular: rotate 90° counter-clockwise — typically inside of circuit
-  const px = -dy / len, py = dx / len;
+  // Perpendicular based on offset sign
+  const sign = cfg.offset >= 0 ? 1 : -1;
+  const px = sign * (-dy / len), py = sign * (dx / len);
+  const offset = Math.abs(cfg.offset);
 
-  // Offset every point. Add tapered entry/exit ramps so pit lane visually
-  // joins the main track at start and end.
+  // Tapered ramps so pit lane visually joins main track at both ends
   const result = [];
   for (let i = 0; i < pts.length; i++) {
-    // Ramp in/out: first 15% and last 15% of pit segment fade offset toward 0
     const tIn  = Math.min(1, i / (pts.length * 0.15));
     const tOut = Math.min(1, (pts.length - 1 - i) / (pts.length * 0.15));
     const taper = Math.min(tIn, tOut);
-    const o = offsetSVG * taper;
+    const o = offset * taper;
     result.push([pts[i][0] + px * o, pts[i][1] + py * o]);
   }
   return result;
+}
+
+// Resolve circuit key from session name
+function resolveCircuitKey(sessionName) {
+  const s = (sessionName || "").toLowerCase();
+  if (s.includes("british") || s.includes("silverstone")) return "Silverstone";
+  if (s.includes("monaco")) return "Monaco";
+  if (s.includes("miami")) return "Miami";
+  if (s.includes("canada") || s.includes("canadian")) return "Canada";
+  return null;
 }
 
 // ─── COLOR UTILITIES ──────────────────────────────────────────────────────────
@@ -497,9 +532,12 @@ function processRealData(json){
         };
       })
   );
-  // Pit lane: use backend-provided if present, otherwise auto-generate
+  // Pit lane: backend-provided OR per-circuit config (no auto-generation fallback)
   const backendPitLane=(track.pit_lane_points||[]).map(p=>[p[0],p[1]]);
-  const pitLanePath = backendPitLane.length>=4 ? backendPitLane : generatePitLanePath(wp, 24);
+  const circuitKey=resolveCircuitKey(`${race.event} ${race.year}`);
+  const pitLanePath = backendPitLane.length>=4
+    ? backendPitLane
+    : generatePitLanePath(wp, circuitKey);
   const rawProg={};
   drivers.forEach(d=>{
     const pos=race.positions[d.code];if(!pos)return;

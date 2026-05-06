@@ -447,6 +447,9 @@ function generatePitLanePath(wp, offsetSVG = 22) {
   }
   return result;
 }
+
+// ─── COLOR UTILITIES ──────────────────────────────────────────────────────────
+function darkenHex(hex, amount=0.35) {
   const m=hex.replace("#","").match(/.{2}/g);
   if(!m||m.length!==3) return hex;
   const [r,g,b]=m.map(h=>parseInt(h,16));

@@ -429,7 +429,7 @@ function TeamBadge({ teamName, driverCode, size="md" }) {
 const CIRCUIT_PIT_LANE = {
   Silverstone: { startFrac: 0.00, endFrac: 0.18, offset:  24 },
   Monaco:      { startFrac: 0.95, endFrac: 0.10, offset: -16, wrap: true }, // pit before S/F
-  Miami:       { startFrac: 0.93, endFrac: 0.07, offset: 28, wrap: true },  // T18 entry → S/F → T2 exit, inside
+  Miami:       { startFrac: 0.93, endFrac: 0.11, offset:  28, wrap: true },  // T18 entry → S/F → past T2 exit, inside
   Canada:      { startFrac: 0.92, endFrac: 0.08, offset:  22, wrap: true },
 };
 

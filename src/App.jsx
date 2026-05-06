@@ -110,13 +110,13 @@ function CarShape({color, scale=1, dimmed=false}) {
     {/* ── NOSE CONE ── pointed, sharp */}
     <path d="M5.5,-1.8 L11.5,0 L5.5,1.8Z" fill={color}/>
     <path d="M7,-1 L11,0 L7,1Z" fill="#000" opacity={0.15}/>
-    {/* ── FRONT WING ── thin, crisp endplates */}
-    <rect x={11} y={-6.2} width={1.8} height={12.4} rx={0.4} fill={color}/>
-    <rect x={10.7} y={-6.5} width={2.4} height={0.9} fill={color}/>
-    <rect x={10.7} y={5.6}  width={2.4} height={0.9} fill={color}/>
+    {/* ── FRONT WING ── narrower endplates, F1-proportional */}
+    <rect x={11} y={-5}   width={1.6} height={10} rx={0.4} fill={color}/>
+    <rect x={10.7} y={-5.3} width={2.2} height={0.8} fill={color}/>
+    <rect x={10.7} y={4.5}  width={2.2} height={0.8} fill={color}/>
     {/* front wing element connecting to nose */}
-    <path d="M5.5,-2.4 L11,-4.5 L11,-3.6 L5.5,-1.6Z" fill={color}/>
-    <path d="M5.5,2.4  L11,4.5  L11,3.6  L5.5,1.6Z"  fill={color}/>
+    <path d="M5.5,-2.4 L11,-3.6 L11,-2.8 L5.5,-1.6Z" fill={color}/>
+    <path d="M5.5,2.4  L11,3.6  L11,2.8  L5.5,1.6Z"  fill={color}/>
   </g>);
 }
 
@@ -294,7 +294,37 @@ const MOCK_CORNER_LABELS=[["T1",510,248,"start"],["T2",572,72,"start"],["T3",618
 // Circuit-specific corner name lookups — add per circuit as needed
 // const TURN_NAMES_SILVERSTONE={1:"ABBEY",2:"FARM",...};
 
-function buildMock(){return{wp:MOCK_WP,tl:MOCK_TL,drivers:MOCK_DRIVERS,steps:MOCK_STEPS,totalLaps:MOCK_LAPS,lapTimeS:MOCK_LAP_S,viewBox:"145 35 525 470",cornerLabels:MOCK_CORNER_LABELS,s1end:32,s2end:54,drs1:[20,24],drs2:[50,54],sessionName:"Select a session →",pitLanePath:[]};}
+function buildMock(){return{wp:MOCK_WP,tl:MOCK_TL,drivers:applyTeammateColors([...MOCK_DRIVERS]),steps:MOCK_STEPS,totalLaps:MOCK_LAPS,lapTimeS:MOCK_LAP_S,viewBox:"145 35 525 470",cornerLabels:MOCK_CORNER_LABELS,s1end:32,s2end:54,drs1:[20,24],drs2:[50,54],sessionName:"Select a session →",pitLanePath:[]};}
+
+// ─── COLOR UTILITIES ──────────────────────────────────────────────────────────
+// F1 TV uses a darker shade for the second driver of each team so teammates
+// are visually distinguishable on track. Mix the base team color with black.
+function darkenHex(hex, amount=0.35) {
+  const m=hex.replace("#","").match(/.{2}/g);
+  if(!m||m.length!==3) return hex;
+  const [r,g,b]=m.map(h=>parseInt(h,16));
+  const dr=Math.round(r*(1-amount));
+  const dg=Math.round(g*(1-amount));
+  const db=Math.round(b*(1-amount));
+  return `#${dr.toString(16).padStart(2,"0")}${dg.toString(16).padStart(2,"0")}${db.toString(16).padStart(2,"0")}`;
+}
+
+// Apply darker shade to one driver per team — reverse alphabetical so:
+// LEC > HAM, VER > HAD, RUS > ANT, PER > BOT, GAS > COL, OCO > BEA, etc.
+// (the second after sort gets darkened)
+function applyTeammateColors(drivers) {
+  const teamGroups={};
+  drivers.forEach(d=>{
+    if(!teamGroups[d.team]) teamGroups[d.team]=[];
+    teamGroups[d.team].push(d);
+  });
+  Object.values(teamGroups).forEach(group=>{
+    if(group.length<2) return;
+    group.sort((a,b)=>b.code.localeCompare(a.code)); // reverse alpha
+    group[1].color=darkenHex(group[1].color,0.42);
+  });
+  return drivers;
+}
 
 function processRealData(json){
   const{track,race}=json,wp=track.points,n=wp.length;
@@ -302,9 +332,11 @@ function processRealData(json){
   const xMin=Math.min(...xs)-30,yMin=Math.min(...ys)-30;
   const vbW=Math.max(...xs)-xMin+30,vbH=Math.max(...ys)-yMin+30;
   const hasPosFor=new Set(Object.keys(race.positions));
-  const drivers=race.drivers.filter(d=>hasPosFor.has(d.code))
-    .map(d=>({code:d.code,name:d.name||d.code,team:d.team||"",color:d.color.startsWith("#")?d.color:"#"+d.color,
-              retiredAtStep:d.retired_at_step??null,pitLaps:d.pit_laps??[],pitWindows:d.pit_windows??[]}));
+  const drivers=applyTeammateColors(
+    race.drivers.filter(d=>hasPosFor.has(d.code))
+      .map(d=>({code:d.code,name:d.name||d.code,team:d.team||"",color:d.color.startsWith("#")?d.color:"#"+d.color,
+                retiredAtStep:d.retired_at_step??null,pitLaps:d.pit_laps??[],pitWindows:d.pit_windows??[]}))
+  );
   const pitLanePath=(track.pit_lane_points||[]).map(p=>[p[0],p[1]]);
   const rawProg={};
   drivers.forEach(d=>{
@@ -421,7 +453,12 @@ export default function F1App(){
   useEffect(()=>{
     const l=document.createElement("link");l.rel="stylesheet";
     l.href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=DM+Mono:wght@400;500&display=swap";
-    document.head.appendChild(l);return()=>document.head.removeChild(l);
+    document.head.appendChild(l);
+    // Inject sector shimmer animation globally
+    const s=document.createElement("style");
+    s.textContent="@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}";
+    document.head.appendChild(s);
+    return()=>{document.head.removeChild(l);document.head.removeChild(s);};
   },[]);
 
   const trackD  =useMemo(()=>catmullPath(wp),[wp]);
@@ -551,59 +588,117 @@ export default function F1App(){
   const standings=useMemo(()=>{const fr=tl[step];if(!fr)return drivers;return[...drivers].sort((a,b)=>(fr.raw[b.code]||0)-(fr.raw[a.code]||0));},[tl,step,drivers]);
 
   // ── Sector colour analysis ─────────────────────────────────────────────────
-  // Computed once per step (not per render frame) via useMemo.
-  // Rules:
-  //   Purple — this driver's current sector time is THE fastest for that sector
-  //            across ALL drivers, across ALL laps completed so far in the race.
-  //   Green  — this driver's current sector time equals their own personal best
-  //            for that sector (fastest they've done it across all their own laps).
-  //   Yellow — current sector time is slower than their personal best.
+  // Each driver has 3 sectors per lap. As they progress around the circuit,
+  // sectors transition: pending → active → complete (with colour + time).
   //
-  // Mock: we simulate deterministic sector times per driver/sector/lap.
-  // Replace mockT() with real FastF1 sector_times when backend exports them.
+  // Sector boundaries (approx for any circuit):
+  //   S1 ends at ~33% of the lap
+  //   S2 ends at ~66% of the lap
+  //   S3 ends at lap completion (100%)
+  //
+  // Rules (only apply once a sector is COMPLETE):
+  //   Purple  — fastest sector time set by ANY driver across all completed laps
+  //   Green   — driver's own personal best for that sector
+  //   Yellow  — slower than personal best
+  //   Pending — driver hasn't reached this sector yet (grey bar, no time)
+  //   Active  — driver is currently in this sector (live colour, no time yet)
   const sectorAnalysis=useMemo(()=>{
-    const BASE=[26.1,31.8,19.4]; // approximate base times (S1, S2, S3) in seconds
+    const BASE=[26.1,31.8,19.4]; // base S1, S2, S3 times in seconds
     const EPS=0.011;
+    const SECTOR_BOUNDS=[0.333,0.666,1.0]; // end of each sector as fraction of lap
 
-    // Deterministic mock sector time — varies lap to lap but consistently
+    // Deterministic mock sector time per driver/sector/lap
     function mockT(code,si,lap){
       const seed=(code.charCodeAt(0)*31+(code.charCodeAt(2)||0)*17+si*7+lap*13)%100;
-      return BASE[si]+(seed/100)*2.0-0.5; // ±1s variation around base
+      return BASE[si]+(seed/100)*2.0-0.5;
     }
 
     const fr=tl[step]||{};
 
-    // Step 1: for each driver compute their current lap's time and personal best
-    const driverData={};
+    // Step 1: per-driver state for current and historical sectors
+    // For a complete lap N: all 3 sectors are done with times
+    // For the in-progress lap (the highest one): some sectors done, others active/pending
+    const driverState={};
     drivers.forEach(d=>{
-      const curLap=fr.lap?.[d.code]||1;
+      const rawNow=fr.raw?.[d.code]||0;
+      const fullLap=Math.floor(rawNow);          // last fully completed lap
+      const lapFrac=rawNow-fullLap;               // 0..1 progress through current lap
+      const currentLap=fullLap+1;                 // the lap currently being driven
+
+      // Personal bests across all completed sectors so far
+      const pb=[Infinity,Infinity,Infinity];
+      for(let lap=1;lap<=fullLap;lap++){
+        for(let si=0;si<3;si++){
+          pb[si]=Math.min(pb[si],mockT(d.code,si,lap));
+        }
+      }
+
+      // Determine state for each sector on the CURRENT lap
       const perSector=[0,1,2].map(si=>{
-        const curT=mockT(d.code,si,curLap);
-        // Personal best = minimum across all laps 1..curLap
-        let pb=curT;
-        for(let lap=1;lap<curLap;lap++) pb=Math.min(pb,mockT(d.code,si,lap));
-        return {curT,pb,t:curT.toFixed(1)};
+        const sectorEnd=SECTOR_BOUNDS[si];
+        const sectorStart=si===0?0:SECTOR_BOUNDS[si-1];
+
+        // If this sector hasn't been entered yet on the current lap
+        if(lapFrac<sectorStart){
+          // Show last completed lap's value if available, else pending
+          if(fullLap>=1){
+            const t=mockT(d.code,si,fullLap);
+            return {state:"complete",t,curT:t,pb:pb[si]};
+          }
+          return {state:"pending"};
+        }
+        // Currently driving through this sector
+        if(lapFrac>=sectorStart && lapFrac<sectorEnd){
+          // No time yet — sector is in progress on this lap
+          // But if the driver has prior laps, show last lap's value as a stale reference
+          if(fullLap>=1){
+            const t=mockT(d.code,si,fullLap);
+            return {state:"active",t,curT:t,pb:pb[si]};
+          }
+          return {state:"active"};
+        }
+        // Past this sector — completed it on the current lap
+        const curT=mockT(d.code,si,currentLap);
+        // Update PB for current sector
+        const newPB=Math.min(pb[si],curT);
+        pb[si]=newPB;
+        return {state:"complete",t:curT,curT,pb:newPB};
       });
-      driverData[d.code]=perSector;
+
+      driverState[d.code]={perSector,pb,fullLap,currentLap,lapFrac};
     });
 
-    // Step 2: session best per sector = minimum across ALL drivers' personal bests
-    const sessionBest=[0,1,2].map(si=>{
-      let best=Infinity;
-      drivers.forEach(d=>{best=Math.min(best,driverData[d.code][si].pb);});
-      return best;
+    // Step 2: session best per sector — global minimum across ALL drivers' completed sectors
+    const sessionBest=[Infinity,Infinity,Infinity];
+    drivers.forEach(d=>{
+      const st=driverState[d.code];
+      if(!st)return;
+      st.perSector.forEach((sec,si)=>{
+        if(sec.state==="complete"&&typeof sec.t==="number"){
+          // Use the actual time set, not just PB
+          sessionBest[si]=Math.min(sessionBest[si],sec.t);
+        }
+        // Also fold in PB just in case
+        if(sec.pb!=null&&isFinite(sec.pb)){
+          sessionBest[si]=Math.min(sessionBest[si],sec.pb);
+        }
+      });
     });
 
-    // Step 3: assign colours
+    // Step 3: compose final colour + time per sector
     const result={};
     drivers.forEach(d=>{
-      result[d.code]=[0,1,2].map(si=>{
-        const {curT,pb,t}=driverData[d.code][si];
+      const st=driverState[d.code];
+      if(!st){result[d.code]=[{state:"pending"},{state:"pending"},{state:"pending"}];return;}
+      result[d.code]=st.perSector.map((sec,si)=>{
+        if(sec.state==="pending") return {state:"pending"};
+        if(sec.state==="active")  return {state:"active",t:sec.t?sec.t.toFixed(1):null};
+        // state === complete
         let color;
-        if(Math.abs(curT-sessionBest[si])<EPS) color="#a855f7"; // purple: session best
-        else if(Math.abs(curT-pb)<EPS)          color="#00ff88"; // green:  personal best
-        else                                     color="#FFD700"; // yellow: slower
-        return {t,color};
+        if(Math.abs(sec.curT-sessionBest[si])<EPS) color="#a855f7";       // session best
+        else if(Math.abs(sec.curT-sec.pb)<EPS)     color="#00ff88";       // personal best
+        else                                        color="#FFD700";       // slower
+        return {state:"complete",color,t:sec.curT.toFixed(1)};
       });
     });
     return result;
@@ -667,7 +762,7 @@ export default function F1App(){
           <div style={{width:200,height:2,background:"#0c0e1a",borderRadius:1,overflow:"hidden",marginTop:8}}>
             <div style={{height:"100%",background:"#E10600",animation:"slide 1.2s ease-in-out infinite",width:"40%"}}/>
           </div>
-          <style>{`@keyframes slide{0%{transform:translateX(-100%)}100%{transform:translateX(600%)}}`}</style>
+          <style>{`@keyframes slide{0%{transform:translateX(-100%)}100%{transform:translateX(600%)}}@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}`}</style>
         </div>
       )}
 
@@ -863,14 +958,36 @@ export default function F1App(){
                               <span style={{fontSize:6,color:"#7a3535",fontFamily:"'DM Mono',monospace"}}>retired</span>
                             ):(
                               <div style={{display:"flex",gap:8}}>
-                                {sectorData.map((sc,si)=>(
-                                  <div key={si} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:3}}>
-                                    <div style={{width:48,height:5,borderRadius:2,background:sc.color,
-                                      boxShadow:`0 0 5px ${sc.color}80`}}/>
-                                    <span style={{fontSize:10,color:sc.color,fontFamily:"'DM Mono',monospace",
-                                      fontWeight:600,opacity:0.95}}>{sc.t}</span>
-                                  </div>
-                                ))}
+                                {sectorData.map((sc,si)=>{
+                                  // Render based on state
+                                  if(sc.state==="pending") return(
+                                    <div key={si} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:3}}>
+                                      <div style={{width:48,height:5,borderRadius:2,background:"#1a1c28",
+                                        border:"1px dashed #2a2d3a"}}/>
+                                      <span style={{fontSize:10,color:"#2a2d3a",fontFamily:"'DM Mono',monospace"}}>—.—</span>
+                                    </div>
+                                  );
+                                  if(sc.state==="active") return(
+                                    <div key={si} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:3}}>
+                                      <div style={{width:48,height:5,borderRadius:2,
+                                        background:"linear-gradient(90deg,#3a3e58,#5a5e80,#3a3e58)",
+                                        backgroundSize:"200% 100%",
+                                        animation:"shimmer 1.4s infinite linear",
+                                        boxShadow:"0 0 6px #5a5e8060"}}/>
+                                      <span style={{fontSize:10,color:"#9a9eb8",fontFamily:"'DM Mono',monospace",
+                                        fontWeight:600,opacity:0.85}}>LIVE</span>
+                                    </div>
+                                  );
+                                  // complete
+                                  return(
+                                    <div key={si} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:3}}>
+                                      <div style={{width:48,height:5,borderRadius:2,background:sc.color,
+                                        boxShadow:`0 0 5px ${sc.color}80`}}/>
+                                      <span style={{fontSize:10,color:sc.color,fontFamily:"'DM Mono',monospace",
+                                        fontWeight:600,opacity:0.95}}>{sc.t}</span>
+                                    </div>
+                                  );
+                                })}
                               </div>
                             )}
                           </div>
@@ -948,14 +1065,31 @@ export default function F1App(){
                       {/* Sector bars + times */}
                       {!isDNF&&!isInPit&&(
                         <div style={{display:"flex",gap:5,marginTop:3}}>
-                          {sectorData.map((sc,si)=>(
-                            <div key={si} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
-                              <div style={{width:28,height:4,borderRadius:1.5,background:sc.color,
-                                boxShadow:`0 0 4px ${sc.color}80`}}/>
-                              <span style={{fontSize:10,color:sc.color,fontFamily:"'DM Mono',monospace",
-                                fontWeight:600,opacity:0.95}}>{sc.t}</span>
-                            </div>
-                          ))}
+                          {sectorData.map((sc,si)=>{
+                            if(sc.state==="pending") return(
+                              <div key={si} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
+                                <div style={{width:28,height:4,borderRadius:1.5,background:"#1a1c28",border:"1px dashed #2a2d3a"}}/>
+                                <span style={{fontSize:10,color:"#2a2d3a",fontFamily:"'DM Mono',monospace"}}>—.—</span>
+                              </div>
+                            );
+                            if(sc.state==="active") return(
+                              <div key={si} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
+                                <div style={{width:28,height:4,borderRadius:1.5,
+                                  background:"linear-gradient(90deg,#3a3e58,#5a5e80,#3a3e58)",
+                                  backgroundSize:"200% 100%",
+                                  animation:"shimmer 1.4s infinite linear",
+                                  boxShadow:"0 0 5px #5a5e8060"}}/>
+                                <span style={{fontSize:10,color:"#9a9eb8",fontFamily:"'DM Mono',monospace",fontWeight:600,opacity:0.85}}>LIVE</span>
+                              </div>
+                            );
+                            return(
+                              <div key={si} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
+                                <div style={{width:28,height:4,borderRadius:1.5,background:sc.color,
+                                  boxShadow:`0 0 4px ${sc.color}80`}}/>
+                                <span style={{fontSize:10,color:sc.color,fontFamily:"'DM Mono',monospace",fontWeight:600,opacity:0.95}}>{sc.t}</span>
+                              </div>
+                            );
+                          })}
                         </div>
                       )}
                     </div>

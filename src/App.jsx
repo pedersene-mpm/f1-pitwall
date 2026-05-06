@@ -412,13 +412,17 @@ const DRIVER_TO_TEAM = {
 };
 
 function resolveTeam(teamName, driverCode) {
+  // Prefer the team string from race data — it's correct for the actual year
+  // (e.g. Hamilton was Mercedes in 2024, Ferrari in 2025+). DRIVER_TO_TEAM
+  // is the 2026 grid lookup, used only as a fallback when team string is missing.
+  if (teamName) {
+    const t = teamName.toLowerCase();
+    for (const [key, info] of Object.entries(TEAM_COLORS)) {
+      if (t.includes(key.toLowerCase())) return { key, ...info };
+    }
+  }
   if (driverCode && DRIVER_TO_TEAM[driverCode] && TEAM_COLORS[DRIVER_TO_TEAM[driverCode]]) {
     return { key: DRIVER_TO_TEAM[driverCode], ...TEAM_COLORS[DRIVER_TO_TEAM[driverCode]] };
-  }
-  if (!teamName) return null;
-  const t = teamName.toLowerCase();
-  for (const [key, info] of Object.entries(TEAM_COLORS)) {
-    if (t.includes(key.toLowerCase())) return { key, ...info };
   }
   return null;
 }
@@ -558,6 +562,7 @@ function processRealData(json){
           retiredAtStep:d.retired_at_step??null,
           pitLaps:d.pit_laps??[],
           pitWindows:d.pit_windows??[],
+          lap_times:d.lap_times??{},
         };
       })
   );
@@ -590,11 +595,17 @@ function processRealData(json){
   const rawProg={};
   drivers.forEach(d=>{
     const pos=race.positions[d.code];if(!pos)return;
+    // Prefer authoritative cumulative_progress from backend (FastF1 lap numbers).
+    // Falls back to S/F crossing reconstruction for older JSONs that don't have
+    // this field yet — but that path can falsely promote drivers due to
+    // interpolation jitter, so regenerate JSONs after backend update.
+    const cum=race.cumulative_progress?.[d.code];
+    if(cum && cum.length===pos.length){
+      rawProg[d.code]=Float64Array.from(cum);
+      return;
+    }
+    // Legacy fallback: reconstruct from clean S/F crossings only
     const raw=new Float64Array(pos.length);let laps=0;raw[0]=pos[0];
-    // Stricter lap boundary: pos must clearly cross start/finish line
-    // (high → low). This prevents spurious lap increments from interpolation
-    // jitter, which was causing certain drivers (HAD, GAS, etc.) to falsely
-    // appear at P1 in early laps.
     for(let i=1;i<pos.length;i++){
       if(pos[i-1]>0.85 && pos[i]<0.15) laps++;
       raw[i]=laps+pos[i];
@@ -625,10 +636,22 @@ function processRealData(json){
   });
 
   // Pre-compute lap times per driver for fastest lap detection
-  // lapTimes[code] = { lap: seconds } — computed from raw progress delta
+  // lapTimes[code] = { lap: seconds }
+  // Prefer real backend lap_times when available; fall back to estimation
+  // (race-time / total-laps) for older JSONs without per-lap data.
   const lapTimes = {};
   const totalRaceTime = race.total_laps * (race.lap_time_s || 88);
   drivers.forEach(d => {
+    // Real lap times come through from the backend (FastF1's actual LapTime per lap)
+    const realLapTimes = d.lap_times;
+    if (realLapTimes && Object.keys(realLapTimes).length > 0) {
+      lapTimes[d.code] = {};
+      Object.entries(realLapTimes).forEach(([lap, secs]) => {
+        lapTimes[d.code][parseInt(lap, 10)] = secs;
+      });
+      return;
+    }
+    // Legacy fallback: estimate per-lap time from raw progress delta
     const raw = rawProg[d.code]; if (!raw) return;
     lapTimes[d.code] = {};
     let lastLapStart = 0;
@@ -636,7 +659,6 @@ function processRealData(json){
       const prevLap = Math.floor(raw[s-1]);
       const curLap  = Math.floor(raw[s]);
       if (curLap > prevLap && curLap <= race.total_laps) {
-        // Estimated time for the completed lap
         const lapSecs = ((s - lastLapStart) / steps) * totalRaceTime;
         lapTimes[d.code][curLap] = lapSecs;
         lastLapStart = s;

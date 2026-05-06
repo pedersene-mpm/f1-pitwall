@@ -671,6 +671,7 @@ export default function F1App(){
   const baseStepsPerSec=steps/(totalLaps*lapTimeS);
 
   const pathRef=useRef(null),pitPathRef=useRef(null),rafRef=useRef(null),stepR=useRef(0);
+  const lastRenderRef=useRef({}); // {code: {x,y,angle,inPit}} — for smooth pit transitions
   const speedR=useRef(speed),playR=useRef(false),lastT=useRef(null);
   const stepsR=useRef(steps),baseRateR=useRef(baseStepsPerSec);
   const tlRef=useRef(tl),driversRef=useRef(drivers);
@@ -769,14 +770,14 @@ export default function F1App(){
     for(const d of drivers){
       const posA=frA.pos[d.code];if(posA==null)continue;
       const rawNow=frA.raw[d.code]||0;
-      const pitWin=d.pitWindows?.find(w=>rawNow>=w[0]-0.08&&rawNow<=w[1]+0.08);
+      // Tighter buffer — only consider in pit when actually within the segment
+      const pitWin=d.pitWindows?.find(w=>rawNow>=w[0]-0.02&&rawNow<=w[1]+0.02);
 
       // Pit entry detection — fire toast once per pit window per driver
       if(pitWin){
         const pitWinKey=`${pitWin[0].toFixed(2)}`;
         const dmap2=driversMapRef.current;
         if(pitToastRef.current[d.code]!==pitWinKey){
-          // Only fire when car is just entering (within first 20% of the window)
           const pitFracCheck=(rawNow-pitWin[0])/(pitWin[1]-pitWin[0]);
           if(pitFracCheck>=0&&pitFracCheck<0.2){
             pitToastRef.current[d.code]=pitWinKey;
@@ -788,9 +789,9 @@ export default function F1App(){
       }
 
       let x,y,angle;
-      if(pitWin&&pitEl&&pitTotal>0){
-        // Smooth interpolation while in pit lane — interpolate raw progress
-        // between frame A and frame B by the same frac used on-track.
+      const isInPit = Boolean(pitWin&&pitEl&&pitTotal>0);
+      if(isInPit){
+        // Smooth interpolation while in pit lane
         const rawB = frB?.raw?.[d.code] ?? rawNow;
         const rawSmooth = rawNow + (rawB - rawNow) * frac;
         const pitFrac=Math.max(0,Math.min(1,(rawSmooth-pitWin[0])/(pitWin[1]-pitWin[0])));
@@ -800,7 +801,7 @@ export default function F1App(){
         const pb=pitEl.getPointAtLength(Math.min(pitTotal,pitL+3));
         x=pt.x;y=pt.y;angle=Math.atan2(pb.y-pa.y,pb.x-pa.x)*57.2958;
       }else{
-        // Smooth lerp with clamped max delta — reduces pit-stop jump
+        // Smooth lerp on track
         const pos=lerpPos(posA,frB?.pos[d.code],frac,0.05);
         const l=pos*total;
         const pt=el.getPointAtLength(l);
@@ -808,7 +809,31 @@ export default function F1App(){
         const pb=el.getPointAtLength(Math.min(total,l+5));
         x=pt.x;y=pt.y;angle=Math.atan2(pb.y-pa.y,pb.x-pa.x)*57.2958;
       }
-      out[d.code]={x,y,angle,isInPit:Boolean(pitWin)};
+
+      // ── Pixel-space smoothing across pit↔track transitions ──
+      // If car just changed pit state OR if there's a sudden pixel jump,
+      // ease toward the target over a few frames instead of snapping.
+      const last=lastRenderRef.current[d.code];
+      if(last){
+        const dx=x-last.x, dy=y-last.y;
+        const jumpDist=Math.hypot(dx,dy);
+        const stateChanged = last.inPit !== isInPit;
+        // Apply pixel smoothing on state change OR any large jump (>14 SVG units)
+        if(stateChanged || jumpDist>14){
+          // Strong pull toward target — eases over ~6 frames at 60fps
+          const ease=0.32;
+          x = last.x + dx*ease;
+          y = last.y + dy*ease;
+          // Angle blending — handle 360° wrap
+          let da = angle-last.angle;
+          if(da>180) da-=360;
+          if(da<-180) da+=360;
+          angle = last.angle + da*ease;
+        }
+      }
+      lastRenderRef.current[d.code]={x,y,angle,inPit:isInPit};
+
+      out[d.code]={x,y,angle,isInPit};
       const rawPrev=frPrev.raw[d.code]||rawNow;
       const delta=Math.max(0,rawNow-rawPrev);
       const kmh=realDt>0?Math.min(360,Math.max(60,Math.round(delta*TRACK_LEN_M/realDt*3.6))):0;
@@ -834,7 +859,7 @@ export default function F1App(){
     else{if(stepR.current>=stepsR.current)stepR.current=0;playR.current=true;setPlaying(true);lastT.current=null;rafRef.current=requestAnimationFrame(loop);}
   },[loop]);
 
-  const clearAll=()=>{speedHistRef.current={};gapHistRef.current={};setSpeedHist({});setGapHist({});fastestRef.current={bestTime:Infinity,bestCode:null,bestLap:null};pitToastRef.current={};};
+  const clearAll=()=>{speedHistRef.current={};gapHistRef.current={};setSpeedHist({});setGapHist({});fastestRef.current={bestTime:Infinity,bestCode:null,bestLap:null};pitToastRef.current={};lastRenderRef.current={};};
 
   const doRestart=useCallback(()=>{
     cancelAnimationFrame(rafRef.current);playR.current=false;setPlaying(false);lastT.current=null;

@@ -623,7 +623,11 @@ function processRealData(json){
     });
     tl.push(fr);
   }
-  // Auto-detect retirement
+  // Auto-detect retirement. raw is in [0, total_laps] space.
+  // - finalRaw >= total_laps - 1.5: they finished (within 1.5 laps of full race)
+  // - In a LOOK-frame window (40 frames ≈ 100s), require > 0.5 lap of progress
+  //   to count as "still moving". Below that, they're stationary or barely
+  //   limping = retired.
   const LOOK=40;
   drivers.forEach(d=>{
     if(d.retiredAtStep!=null)return;
@@ -631,7 +635,7 @@ function processRealData(json){
     const finalRaw=raw[raw.length-1];
     if(finalRaw>=race.total_laps-1.5)return;
     for(let s=raw.length-1;s>=LOOK;s--){
-      if(raw[s]-raw[s-LOOK]>0.05){d.retiredAtStep=s;break;}
+      if(raw[s]-raw[s-LOOK]>0.5){d.retiredAtStep=s;break;}
     }
   });
 
@@ -886,8 +890,10 @@ export default function F1App(){
 
       out[d.code]={x,y,angle,isInPit};
       const rawPrev=frPrev.raw[d.code]||rawNow;
-      const delta=Math.max(0,rawNow-rawPrev);
-      const kmh=realDt>0?Math.min(360,Math.max(60,Math.round(delta*TRACK_LEN_M/realDt*3.6))):0;
+      // rawProg is in [0, total_laps] space — divide by total_laps to get
+      // the per-lap fraction, then multiply by track length for meters.
+      const lapsDelta=Math.max(0,(rawNow-rawPrev)/(totalLaps||1));
+      const kmh=realDt>0?Math.min(360,Math.max(60,Math.round(lapsDelta*TRACK_LEN_M/realDt*3.6))):0;
       if(!speedHistRef.current[d.code])speedHistRef.current[d.code]=[];
       speedHistRef.current[d.code].push(kmh);
       if(speedHistRef.current[d.code].length>SPEED_HIST)speedHistRef.current[d.code].shift();

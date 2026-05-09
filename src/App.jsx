@@ -563,6 +563,7 @@ function processRealData(json){
           pitLaps:d.pit_laps??[],
           pitWindows:d.pit_windows??[],
           lap_times:d.lap_times??{},
+          sector_times:d.sector_times??{},
         };
       })
   );
@@ -623,7 +624,11 @@ function processRealData(json){
     });
     tl.push(fr);
   }
-  // Auto-detect retirement
+  // Auto-detect retirement. raw is in [0, total_laps] space.
+  // - finalRaw >= total_laps - 1.5: they finished (within 1.5 laps of full race)
+  // - In a LOOK-frame window (40 frames ≈ 100s), require > 0.5 lap of progress
+  //   to count as "still moving". Below that, they're stationary or barely
+  //   limping = retired.
   const LOOK=40;
   drivers.forEach(d=>{
     if(d.retiredAtStep!=null)return;
@@ -631,7 +636,7 @@ function processRealData(json){
     const finalRaw=raw[raw.length-1];
     if(finalRaw>=race.total_laps-1.5)return;
     for(let s=raw.length-1;s>=LOOK;s--){
-      if(raw[s]-raw[s-LOOK]>0.05){d.retiredAtStep=s;break;}
+      if(raw[s]-raw[s-LOOK]>0.5){d.retiredAtStep=s;break;}
     }
   });
 
@@ -674,10 +679,16 @@ function processRealData(json){
     const name=`T${num}${letter}`;
     if(seen.has(name))return;seen.add(name);cornerLabels.push([name,c.x,c.y,"middle"]);
   });
+  // Sector boundaries — use real values from backend (derived from pole lap
+  // timing data) when available, otherwise fall back to hardcoded 45%/75%.
+  // Real values are accurate per circuit (e.g. Miami: 35.3% / 72.6%).
+  const sb = track.sector_boundaries;
+  const s1Frac = sb?.s1_end_frac ?? 0.45;
+  const s2Frac = sb?.s2_end_frac ?? 0.75;
   return{wp,tl,drivers,steps,totalLaps:race.total_laps,lapTimeS:race.lap_time_s||88,
     viewBox:`${xMin} ${yMin} ${vbW} ${vbH}`,cornerLabels,
     corners:track.corners||[],
-    s1end:Math.floor(n*0.45),s2end:Math.floor(n*0.75),
+    s1end:Math.floor(n*s1Frac),s2end:Math.floor(n*s2Frac),
     drs1:[Math.floor(n*0.30),Math.floor(n*0.44)],
     drs2:[Math.floor(n*0.62),Math.floor(n*0.74)],
     sessionName:`${race.event} ${race.year} — ${race.session}`,
@@ -886,8 +897,10 @@ export default function F1App(){
 
       out[d.code]={x,y,angle,isInPit};
       const rawPrev=frPrev.raw[d.code]||rawNow;
-      const delta=Math.max(0,rawNow-rawPrev);
-      const kmh=realDt>0?Math.min(360,Math.max(60,Math.round(delta*TRACK_LEN_M/realDt*3.6))):0;
+      // rawProg is in [0, total_laps] space — divide by total_laps to get
+      // the per-lap fraction, then multiply by track length for meters.
+      const lapsDelta=Math.max(0,(rawNow-rawPrev)/(totalLaps||1));
+      const kmh=realDt>0?Math.min(360,Math.max(60,Math.round(lapsDelta*TRACK_LEN_M/realDt*3.6))):0;
       if(!speedHistRef.current[d.code])speedHistRef.current[d.code]=[];
       speedHistRef.current[d.code].push(kmh);
       if(speedHistRef.current[d.code].length>SPEED_HIST)speedHistRef.current[d.code].shift();
@@ -968,21 +981,30 @@ export default function F1App(){
   //   Pending — driver hasn't reached this sector yet (grey bar, no time)
   //   Active  — driver is currently in this sector (live colour, no time yet)
   const sectorAnalysis=useMemo(()=>{
-    const BASE=[26.1,31.8,19.4]; // base S1, S2, S3 times in seconds
     const EPS=0.011;
-    const SECTOR_BOUNDS=[0.333,0.666,1.0]; // end of each sector as fraction of lap
+    // Sector ranges in [0,1] lap fraction. Use real sector boundaries from
+    // backend if present (s1Frac/s2Frac were already used to derive s1end/s2end
+    // so we don't have them in this scope; reconstruct from those waypoint
+    // indices over the wp array length).
+    const totalWp=wp?.length||1;
+    const s1Bound=s1end/totalWp;
+    const s2Bound=s2end/totalWp;
+    const SECTOR_BOUNDS=[s1Bound,s2Bound,1.0];
 
-    // Deterministic mock sector time per driver/sector/lap
-    function mockT(code,si,lap){
-      const seed=(code.charCodeAt(0)*31+(code.charCodeAt(2)||0)*17+si*7+lap*13)%100;
-      return BASE[si]+(seed/100)*2.0-0.5;
+    // Real sector time lookup. Returns the actual FastF1/OpenF1 value if
+    // present, or null when the driver hasn't recorded a sector time for
+    // that lap (DNF mid-lap, formation lap, sector that wasn't crossed).
+    // The UI shows a dash for null instead of inventing a fake value.
+    function realT(code,si,lap){
+      const drv=drivers.find(d=>d.code===code);
+      const arr=drv?.sector_times?.[lap];
+      if(arr && typeof arr[si]==="number") return arr[si];
+      return null;
     }
 
     const fr=tl[step]||{};
 
     // Step 1: per-driver state for current and historical sectors
-    // For a complete lap N: all 3 sectors are done with times
-    // For the in-progress lap (the highest one): some sectors done, others active/pending
     const driverState={};
     drivers.forEach(d=>{
       const rawNow=fr.raw?.[d.code]||0;
@@ -990,11 +1012,13 @@ export default function F1App(){
       const lapFrac=rawNow-fullLap;               // 0..1 progress through current lap
       const currentLap=fullLap+1;                 // the lap currently being driven
 
-      // Personal bests across all completed sectors so far
+      // Personal bests across all completed sectors so far. Skip null values
+      // so we don't pollute PB with missing data.
       const pb=[Infinity,Infinity,Infinity];
       for(let lap=1;lap<=fullLap;lap++){
         for(let si=0;si<3;si++){
-          pb[si]=Math.min(pb[si],mockT(d.code,si,lap));
+          const t=realT(d.code,si,lap);
+          if(t!=null) pb[si]=Math.min(pb[si],t);
         }
       }
 
@@ -1005,27 +1029,24 @@ export default function F1App(){
 
         // If this sector hasn't been entered yet on the current lap
         if(lapFrac<sectorStart){
-          // Show last completed lap's value if available, else pending
           if(fullLap>=1){
-            const t=mockT(d.code,si,fullLap);
+            const t=realT(d.code,si,fullLap);
             return {state:"complete",t,curT:t,pb:pb[si]};
           }
           return {state:"pending"};
         }
         // Currently driving through this sector
         if(lapFrac>=sectorStart && lapFrac<sectorEnd){
-          // No time yet — sector is in progress on this lap
-          // But if the driver has prior laps, show last lap's value as a stale reference
           if(fullLap>=1){
-            const t=mockT(d.code,si,fullLap);
+            const t=realT(d.code,si,fullLap);
             return {state:"active",t,curT:t,pb:pb[si]};
           }
           return {state:"active"};
         }
         // Past this sector — completed it on the current lap
-        const curT=mockT(d.code,si,currentLap);
-        // Update PB for current sector
-        const newPB=Math.min(pb[si],curT);
+        const curT=realT(d.code,si,currentLap);
+        // Update PB only if curT is real
+        const newPB=(curT!=null)?Math.min(pb[si],curT):pb[si];
         pb[si]=newPB;
         return {state:"complete",t:curT,curT,pb:newPB};
       });
@@ -1040,25 +1061,30 @@ export default function F1App(){
       if(!st)return;
       st.perSector.forEach((sec,si)=>{
         if(sec.state==="complete"&&typeof sec.t==="number"){
-          // Use the actual time set, not just PB
           sessionBest[si]=Math.min(sessionBest[si],sec.t);
         }
-        // Also fold in PB just in case
         if(sec.pb!=null&&isFinite(sec.pb)){
           sessionBest[si]=Math.min(sessionBest[si],sec.pb);
         }
       });
     });
 
-    // Step 3: compose final colour + time per sector
+    // Step 3: compose final colour + time per sector. When the time is
+    // unavailable (null), display a dash and use a neutral grey colour.
     const result={};
     drivers.forEach(d=>{
       const st=driverState[d.code];
       if(!st){result[d.code]=[{state:"pending"},{state:"pending"},{state:"pending"}];return;}
       result[d.code]=st.perSector.map((sec,si)=>{
         if(sec.state==="pending") return {state:"pending"};
-        if(sec.state==="active")  return {state:"active",t:sec.t?sec.t.toFixed(1):null};
+        if(sec.state==="active") {
+          return {state:"active",t:(typeof sec.t==="number")?sec.t.toFixed(1):null};
+        }
         // state === complete
+        if(typeof sec.curT!=="number"){
+          // Sector completed but no time recorded — show dash, neutral colour
+          return {state:"complete",color:"#3a3e5a",t:"—"};
+        }
         let color;
         if(Math.abs(sec.curT-sessionBest[si])<EPS) color="#a855f7";       // session best
         else if(Math.abs(sec.curT-sec.pb)<EPS)     color="#00ff88";       // personal best
